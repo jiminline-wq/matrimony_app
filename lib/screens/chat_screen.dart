@@ -23,6 +23,8 @@ import '../widgets/verified_badge.dart';
 import 'call_screen.dart';
 import 'user_profile_view_screen.dart';
 import '../utils/chat_icebreakers.dart';
+import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
+import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
 
 // ============================================================
 // CHAT SCREEN — WhatsApp-style
@@ -47,21 +49,11 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  // ✅ NEW — Icebreakers
   List<String> _icebreakers = [];
-
-  // PENDING MESSAGES (optimistic UI)
-
-  // ============================================================
-  // CONTROLLERS
-  // ============================================================
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _inputFocus = FocusNode();
 
-  // ============================================================
-  // BASIC STATE
-  // ============================================================
   String? _chatId;
   bool _isSending = false;
   bool _showScrollButton = false;
@@ -70,75 +62,39 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _lastMsgId;
   Map<String, dynamic>? _replyTo;
 
-  // ============================================================
-  // TYPING STATE
-  // ============================================================
   Timer? _typingStartTimer;
   Timer? _typingStopTimer;
   bool _isMeTyping = false;
 
-  // ============================================================
-  // READ LISTENER — single subscription
-  // ============================================================
   StreamSubscription<QuerySnapshot>? _messagesReadSub;
-
-  // ============================================================
-  // CALL STATE
-  // ============================================================
   bool _isStartingCall = false;
-
-  // ============================================================
-  // PENDING MESSAGES (optimistic UI)
-  // ============================================================
   final List<Map<String, dynamic>> _pendingMessages = [];
 
-  // ============================================================
-  // PAGINATION STATE (cursor-based)
-  // ============================================================
   static const int _pageSize = 30;
   final Map<String, Map<String, dynamic>> _messagesMap = {};
   Timestamp? _oldestTimestamp;
   bool _hasMoreMessages = true;
   bool _isLoadingOlder = false;
 
-  // ============================================================
-  // OTHER USER
-  // ============================================================
   bool _isOtherUserVerified = false;
-
-  // ============================================================
-  // VOICE RECORDING
-  // ============================================================
   bool _isRecording = false;
   int _recordingSeconds = 0;
   Timer? _recordTimer;
 
-  // ============================================================
-  // CLOUDINARY
-  // ============================================================
   static const String cloudinaryCloudName = 'acctuglm';
   static const String cloudinaryUploadPreset = 'jibon_sathi_chat';
 
-  // ============================================================
-  // COLORS
-  // ============================================================
   static const Color _chatBg = Color(0xFFECE5DD);
   static const Color _myBubble = Color(0xFF075E54);
   static const Color _myBubbleAlt = Color(0xFF8B1E3F);
 
-  // ============================================================
-  // INIT / DISPOSE
-  // ============================================================
   @override
   void initState() {
     super.initState();
     _initChatId();
     _loadOtherUserVerified();
-
-    // ✅ NEW — Initialize icebreakers
     _icebreakers = ChatIcebreakers.getRandom(widget.isBangla, count: 4);
 
-    // ✅ Register active chat for notification suppression
     ChatPresenceService.enterChat(
       chatId: _chatId ?? '',
       otherUserId: widget.otherUserId,
@@ -155,9 +111,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    // ✅ Unregister active chat
     ChatPresenceService.exitChat();
-
     _messagesReadSub?.cancel();
     _typingStartTimer?.cancel();
     _typingStopTimer?.cancel();
@@ -170,7 +124,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollController.dispose();
     _inputFocus.dispose();
 
-    // Best-effort typing status clear
     final myUid = FirebaseAuth.instance.currentUser?.uid;
     if (myUid != null && _chatId != null) {
       FirebaseFirestore.instance.collection('chats').doc(_chatId).set({
@@ -181,9 +134,6 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  // ============================================================
-  // FOCUS / TEXT CHANGE
-  // ============================================================
   void _onFocusChanged() {
     if (mounted) setState(() {});
   }
@@ -195,9 +145,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ============================================================
-  // SCROLL HANDLER
-  // ============================================================
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final offset = _scrollController.position.pixels;
@@ -216,9 +163,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ============================================================
-  // LOAD OLDER MESSAGES — real cursor-based
-  // ============================================================
   Future<void> _loadOlderMessages() async {
     if (_isLoadingOlder ||
         !_hasMoreMessages ||
@@ -262,18 +206,12 @@ class _ChatScreenState extends State<ChatScreen> {
         _isLoadingOlder = false;
         if (snap.docs.length < _pageSize) _hasMoreMessages = false;
       });
-
-      debugPrint('📜 Loaded ${snap.docs.length} older messages '
-          '(total cached: ${_messagesMap.length}, hasMore: $_hasMoreMessages)');
     } catch (e) {
       debugPrint('❌ _loadOlderMessages failed: $e');
       if (mounted) setState(() => _isLoadingOlder = false);
     }
   }
 
-  // ============================================================
-  // SCROLL HELPERS
-  // ============================================================
   void _scrollToBottom({bool animated = true}) {
     if (!_scrollController.hasClients) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -290,9 +228,6 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  // ============================================================
-  // CHAT ID
-  // ============================================================
   void _initChatId() {
     final myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final ids = [myUid, widget.otherUserId]..sort();
@@ -313,9 +248,6 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
   }
 
-  // ============================================================
-  // MARK READ — single source of truth
-  // ============================================================
   Future<void> _markMessagesAsRead() async {
     final myUid = FirebaseAuth.instance.currentUser?.uid;
     if (myUid == null || _chatId == null) return;
@@ -341,7 +273,6 @@ class _ChatScreenState extends State<ChatScreen> {
         }
         if (count > 0) {
           await batch.commit();
-          debugPrint('✅ Marked $count messages as read');
         }
       }
 
@@ -389,9 +320,6 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
   }
 
-  // ============================================================
-  // TYPING INDICATOR
-  // ============================================================
   void _onTextChanged(String text) {
     final myUid = FirebaseAuth.instance.currentUser?.uid;
     if (myUid == null || _chatId == null) return;
@@ -445,9 +373,6 @@ class _ChatScreenState extends State<ChatScreen> {
     return false;
   }
 
-  // ============================================================
-  // VOICE CALL
-  // ============================================================
   Future<void> _startVoiceCall() async {
     if (_isStartingCall) return;
     _isStartingCall = true;
@@ -547,9 +472,6 @@ class _ChatScreenState extends State<ChatScreen> {
     return 'js_${hash.toRadixString(36).padLeft(7, '0')}';
   }
 
-  // ============================================================
-  // OPEN OTHER USER PROFILE
-  // ============================================================
   Future<void> _openOtherUserProfile() async {
     try {
       final doc = await FirebaseFirestore.instance
@@ -569,9 +491,6 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
   }
 
-  // ============================================================
-  // SEND TEXT
-  // ============================================================
   Future<void> _sendTextMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty || _chatId == null) return;
@@ -587,9 +506,6 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) setState(() => _replyTo = null);
   }
 
-  // ============================================================
-  // SEND MESSAGE (optimistic + batch write)
-  // ============================================================
   Future<void> _sendMessage({
     required String type,
     String? text,
@@ -702,9 +618,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ============================================================
-  // VOICE RECORDING
-  // ============================================================
   Future<void> _startRecording() async {
     final started = await VoiceRecorderService.start();
     if (!started) {
@@ -757,9 +670,6 @@ class _ChatScreenState extends State<ChatScreen> {
     return '$m:$sec';
   }
 
-  // ============================================================
-  // REACTION — Firestore transaction for race-safety
-  // ============================================================
   Future<void> _addReaction(String messageId, String emoji) async {
     if (_chatId == null || messageId.isEmpty) return;
     final myUid = FirebaseAuth.instance.currentUser?.uid;
@@ -787,16 +697,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
         transaction.update(docRef, {'reactions': reactions});
       });
-
-      debugPrint('✅ Reaction ${emoji} toggled on $messageId');
     } catch (e) {
       debugPrint('❌ _addReaction failed: $e');
     }
   }
 
-  // ============================================================
-  // DELETE MESSAGE
-  // ============================================================
   Future<void> _deleteMessage(String messageId) async {
     if (_chatId == null) return;
     try {
@@ -810,9 +715,6 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
   }
 
-  // ============================================================
-  // ATTACHMENT — IMAGE
-  // ============================================================
   Future<void> _pickAndSendImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? picked = await picker.pickImage(
@@ -851,9 +753,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ============================================================
-  // ATTACHMENT — VIDEO
-  // ============================================================
   Future<void> _pickAndSendVideo() async {
     final ImagePicker picker = ImagePicker();
     final XFile? picked = await picker.pickVideo(
@@ -891,9 +790,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ============================================================
-  // ATTACHMENT — FILE
-  // ============================================================
   Future<void> _pickAndSendFile() async {
     final result = await FilePicker.platform.pickFiles(type: FileType.any);
     if (result == null || result.files.isEmpty) return;
@@ -980,9 +876,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // ============================================================
-  // ATTACHMENT SHEET
-  // ============================================================
   void _showAttachmentSheet() {
     final bn = widget.isBangla;
     showModalBottomSheet(
@@ -1090,15 +983,28 @@ class _ChatScreenState extends State<ChatScreen> {
     final bn = widget.isBangla;
     final myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
+    // ✅ Stack ব্যবহার করা হলো যাতে রেকর্ডিং ওভারলে ঠিকমতো কাজ করে
     return Scaffold(
       backgroundColor: _chatBg,
       appBar: _buildAppBar(bn),
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(child: _buildMessageList(bn, myUid)),
-          if (_isSending) _buildSendingBar(bn),
-          if (_replyTo != null) _buildReplyPreview(bn),
-          _buildInputBar(bn),
+          Column(
+            children: [
+              Expanded(child: _buildMessageList(bn, myUid)),
+              if (_isSending) _buildSendingBar(bn),
+              if (_replyTo != null) _buildReplyPreview(bn),
+              _buildInputBar(bn),
+              // ✅ ইনপুট বারের ঠিক নিচে ব্যানার অ্যাড বসানো হলো
+              const SafeArea(
+                top: false,
+                child: BannerAdWidget(
+                  placementId: AdConfig.placementChat, // অথবা placementChatList
+                ),
+              ),
+            ],
+          ),
+          // ✅ রেকর্ডিং ওভারলে (উপরে ভেসে থাকবে)
           if (_isRecording) _buildRecordingOverlay(bn),
         ],
       ),
@@ -1238,7 +1144,6 @@ class _ChatScreenState extends State<ChatScreen> {
           );
         }
 
-        // ---- Merge stream docs into cache ----
         if (snapshot.hasData) {
           for (final doc in snapshot.data!.docs) {
             final data = doc.data() as Map<String, dynamic>;
@@ -1257,7 +1162,6 @@ class _ChatScreenState extends State<ChatScreen> {
           }
         }
 
-        // ---- Sorted combined list ----
         final allMessages = _messagesMap.values.toList();
         allMessages.sort((a, b) {
           final ta = a['timestamp'] as Timestamp?;
@@ -1341,6 +1245,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 final item = items[index];
                 final data = item.data;
                 final isMe = data['senderId'] == myUid;
+
                 // ✅ কল লগের জন্য আলাদা UI
                 if (data['type'] == 'call') {
                   return Padding(
@@ -1813,18 +1718,12 @@ class _ChatScreenState extends State<ChatScreen> {
   // ============================================================
   // EMPTY STATE
   // ============================================================
-// ============================================================
-// EMPTY STATE — with icebreakers
-// ============================================================
   Widget _buildEmptyState(bool bn) {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 40, 20, 20),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // ============================================================
-          // Header illustration
-          // ============================================================
           Container(
             width: 90,
             height: 90,
@@ -1846,7 +1745,6 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           const SizedBox(height: 20),
-
           Text(
             bn ? 'কথা শুরু করুন' : 'Break the ice',
             style: const TextStyle(
@@ -1865,12 +1763,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             textAlign: TextAlign.center,
           ),
-
           const SizedBox(height: 24),
-
-          // ============================================================
-          // Icebreaker cards
-          // ============================================================
           ..._icebreakers.map((question) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -1939,12 +1832,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             );
           }),
-
           const SizedBox(height: 8),
-
-          // ============================================================
-          // "More questions" refresh button
-          // ============================================================
           TextButton.icon(
             onPressed: () {
               setState(() {
@@ -1961,12 +1849,7 @@ class _ChatScreenState extends State<ChatScreen> {
               foregroundColor: primaryMaroon,
             ),
           ),
-
           const SizedBox(height: 20),
-
-          // ============================================================
-          // Trust footer
-          // ============================================================
           Container(
             padding: const EdgeInsets.symmetric(
               horizontal: 14,
