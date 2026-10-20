@@ -7,7 +7,7 @@ import '../theme/colors.dart';
 import '../models/user_profile.dart';
 import '../utils/like_service.dart';
 import 'user_profile_view_screen.dart';
-import '../ads/rewarded_ad_manager.dart'; // ✅ রিওয়ার্ডেড অ্যাড ইমপোর্ট
+import '../ads/rewarded_ad_manager.dart';
 
 class WhoLikedMeScreen extends StatefulWidget {
   final bool isBangla;
@@ -31,6 +31,8 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
   @override
   void initState() {
     super.initState();
+    // ✅ পেজে ঢোকার সাথে সাথেই অ্যাড লোড করা শুরু করি
+    RewardedAdManager.loadAd();
     _checkUnlockStatusAndLoad();
   }
 
@@ -120,6 +122,7 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
     setState(() => _isUnlocking = true);
 
     try {
+      // অ্যাড শো করার চেষ্টা করি
       final success = await RewardedAdManager.showAd(
         onUserEarnedReward: () {},
       );
@@ -152,9 +155,31 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
             );
           }
         }
+      } else {
+        // ✅ যদি অ্যাড লোড না হয় বা ইউজার অ্যাড পুরোটা না দেখে বন্ধ করে দেয়
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(widget.isBangla
+                  ? 'বিজ্ঞাপনটি সম্পূর্ণ দেখতে হবে। ইন্টারনেট চেক করে আবার চেষ্টা করুন।'
+                  : 'You must watch the full ad. Check internet and try again.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
       }
     } catch (e) {
       debugPrint('❌ Unlock failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.isBangla
+                ? 'কিছু ভুল হয়েছে। আবার চেষ্টা করুন।'
+                : 'Something went wrong. Try again.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isUnlocking = false);
     }
@@ -290,10 +315,8 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
         itemBuilder: (context, index) {
           final item = likers[index];
           final profile = item['profile'] as UserProfile;
-          final likedAt = item['likedAt'];
           final isMutual = item['isMutual'] as bool;
 
-          // ... (এখানে আপনার আগের ডিজাইনের কোডটুকু হুবহু বসবে, যা আমি নিচে দিচ্ছি)
           return Container(
             margin: const EdgeInsets.only(bottom: 14),
             padding: const EdgeInsets.all(12),
