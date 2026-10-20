@@ -10,6 +10,8 @@ import 'package:video_player/video_player.dart';
 import '../models/story.dart';
 import '../services/story_service.dart';
 import '../theme/colors.dart';
+import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
+import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
 
 class StoryViewerScreen extends StatefulWidget {
   final List<UserStories> users;
@@ -448,7 +450,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
             if (current.story.caption != null &&
                 current.story.caption!.isNotEmpty)
               Positioned(
-                bottom: isMine ? 40 : 100,
+                bottom: isMine ? 90 : 160, // ✅ অ্যাডের জন্য একটু উপরে সরানো হলো
                 left: 16,
                 right: 16,
                 child: Container(
@@ -500,9 +502,24 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               Positioned(
                 left: 16,
                 right: 16,
-                bottom: 24 + MediaQuery.of(context).padding.bottom,
+                bottom: 80 +
+                    MediaQuery.of(context)
+                        .padding
+                        .bottom, // ✅ অ্যাডের জন্য উপরে সরানো হলো
                 child: _buildReactionBar(),
               ),
+
+            // ================= Banner Ad =================
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(
+                child: BannerAdWidget(
+                  placementId: AdConfig.placementStoryDetails,
+                ),
+              ),
+            ),
           ],
         ),
       ),
