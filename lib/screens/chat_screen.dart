@@ -999,7 +999,8 @@ class _ChatScreenState extends State<ChatScreen> {
               const SafeArea(
                 top: false,
                 child: BannerAdWidget(
-                  placementId: AdConfig.placementChat, // অথবা placementChatList
+                  placementId:
+                      AdConfig.placementChatList, // অথবা placementChatList
                 ),
               ),
             ],
