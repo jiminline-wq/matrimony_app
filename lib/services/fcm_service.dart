@@ -12,7 +12,7 @@ import '../utils/navigation_service.dart';
 import '../screens/call_screen.dart';
 
 // ============================================================
-// ✅ FCM BACKGROUND HANDLER (অ্যাপ কিল থাকলে এটি রান হবে)
+// ✅ FCM BACKGROUND HANDLER (অ্যাপ কিল থাকলে বা ব্যাকগ্রাউন্ডে রান হবে)
 // ============================================================
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -40,7 +40,7 @@ class FcmService {
   static StreamSubscription<RemoteMessage>? _foregroundSub;
   static StreamSubscription<RemoteMessage>? _openedAppSub;
 
-  // ✅ কল চ্যানেল (v9) - কাস্টম রিংটোন
+  // ✅ কল চ্যানেল (v9) - কাস্টম রিংটোন (ভয়েস ও ভিডিও উভয় কলের জন্য)
   static const _callChannel = AndroidNotificationChannel(
     'call_channel_v9',
     'Incoming Calls',
@@ -78,7 +78,7 @@ class FcmService {
           if (response.payload != null) {
             final data = jsonDecode(response.payload!);
 
-            // ✅ নটিফিকেশনে ক্লিক করলে কল নোটিফিকেশনটি সাথে সাথে ক্যানসেল করে দিন
+            // ✅ নোটিফিকেশনে ট্যাপ করলেই রিংটোন ও নোটিফিকেশন ক্যানসেল হবে
             if (data['callId'] != null) {
               cancelCallNotification(data['callId'].hashCode);
             }
@@ -100,7 +100,7 @@ class FcmService {
       if (token != null) await _saveTokenToFirestore(token);
       _messaging.onTokenRefresh.listen(_saveTokenToFirestore);
 
-      // ✅ অ্যাপ ওপেন থাকলে (Foreground)
+      // ✅ অ্যাপ ফোরগ্রাউন্ডে (সরাসরি চালু) থাকলে
       _foregroundSub = FirebaseMessaging.onMessage.listen((message) {
         debugPrint('🔔 Foreground message: ${message.data}');
         if (message.data['type'] == 'call') {
@@ -112,10 +112,9 @@ class FcmService {
         }
       });
 
-      // ✅ অ্যাপ ব্যাকগ্রাউন্ডে থাকলে নোটিফিকেশনে ক্লিক
+      // ✅ ব্যাকগ্রাউন্ড থেকে নোটিফিকেশনে ক্লিক করলে
       _openedAppSub = FirebaseMessaging.onMessageOpenedApp.listen((message) {
         debugPrint('🔔 Message opened app: ${message.data}');
-
         final data = message.data;
         if (data['callId'] != null) {
           cancelCallNotification(data['callId'].hashCode);
@@ -126,7 +125,7 @@ class FcmService {
         );
       });
 
-      // ✅ অ্যাপ কিল থাকলে নোটিফিকেশন থেকে ওপেন
+      // ✅ অ্যাপ কিল (Killed) থাকা অবস্থায় নোটিফিকেশন থেকে ওপেন করলে
       final initialMessage = await _messaging.getInitialMessage();
       if (initialMessage != null) {
         debugPrint('🔔 Initial message: ${initialMessage.data}');
@@ -145,12 +144,12 @@ class FcmService {
   }
 
   // ============================================================
-  // ✅ SPECIFIC NOTIFICATION CANCELLATION (রিং বন্ধ করার জন্য অত্যন্ত জরুরি)
+  // ✅ SPECIFIC NOTIFICATION CANCELLATION (রিংটোন বন্ধ করার জন্য)
   // ============================================================
   static Future<void> cancelCallNotification(int notificationId) async {
     try {
       await _localNotifications.cancel(notificationId);
-      debugPrint('🔕 Call notification cancelled: $notificationId');
+      debugPrint('🔕 Call notification/ringtone cancelled: $notificationId');
     } catch (e) {
       debugPrint('❌ Failed to cancel call notification: $e');
     }
@@ -225,7 +224,7 @@ class FcmService {
   }
 
   // ============================================================
-  // ✅ BACKGROUND CALL NOTIFICATION (Full Screen Intent)
+  // ✅ BACKGROUND CALL NOTIFICATION (ভয়েস ও ভিডিও কল উভয়ের জন্য ফুল-স্ক্রিন ও রিংটোন)
   // ============================================================
   static Future<void> showBackgroundCallNotification(
       RemoteMessage message) async {
@@ -242,7 +241,10 @@ class FcmService {
     await androidPlugin?.createNotificationChannel(_callChannel);
 
     final data = message.data;
-    final isVideoCall = data['isVideoCall'] == 'true';
+
+    // ✅ ভিডিও কল নাকি ভয়েস কল তা চেক করা হচ্ছে ('true' অথবা true হতে পারে)
+    final isVideoCall =
+        data['isVideoCall'] == 'true' || data['isVideoCall'] == true;
     final callerName = data['callerName'] ?? 'Someone';
 
     // ইউনিক নোটিফিকেশন আইডি (কল আইডি থেকে জেনারেট করা)
@@ -267,7 +269,9 @@ class FcmService {
     await localNotif.show(
       notifId,
       isVideoCall ? '📹 Incoming Video Call' : '📞 Incoming Call',
-      '$callerName is calling you...',
+      isVideoCall
+          ? '$callerName is video calling you...'
+          : '$callerName is calling you...',
       NotificationDetails(android: androidDetails),
       payload: jsonEncode(data),
     );
