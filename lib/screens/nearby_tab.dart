@@ -11,6 +11,8 @@ import '../services/location_service.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/chat_icon_button.dart';
 import 'user_profile_view_screen.dart';
+import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
+import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
 
 // ============================================================
 // NEARBY TAB — ২০ কিমি radius + distance sort + pagination
@@ -423,6 +425,11 @@ class _NearbyTabState extends State<NearbyTab> {
           _buildDistrictBar(bn),
           _buildSearchBar(bn),
           Expanded(child: _buildBody(bn)),
+
+          // ✅ Fixed Banner Ad at the bottom
+          const BannerAdWidget(
+            placementId: AdConfig.placementNearby,
+          ),
         ],
       ),
     );
