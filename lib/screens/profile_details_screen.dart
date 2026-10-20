@@ -7,6 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../theme/colors.dart';
 import 'profile_preview_screen.dart';
+import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
+import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
 
 // ============================================================
 // PROFILE DETAILS SCREEN
@@ -504,388 +506,409 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
           color: deepMaroon,
         ),
       ),
-      body: SafeArea(
-        child: Form(
-          key: formKey,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              10,
-              20,
-              30,
-            ),
-            children: [
-              // ==================================================
-              // MAIN PROFILE PHOTO
-              // ==================================================
-
-              sectionHeader(
-                icon: Icons.photo_camera_outlined,
-                title: widget.isBangla ? 'প্রোফাইল ছবি' : 'Profile Photo',
-                subtitle: widget.isBangla
-                    ? 'আপনার একটি পরিষ্কার ছবি দিন'
-                    : 'Add a clear profile photo',
-              ),
-
-              Center(
-                child: GestureDetector(
-                  onTap: pickProfileImage,
-                  child: Container(
-                    width: 150,
-                    height: 150,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: lightMaroon,
-                      border: Border.all(
-                        color: primaryGold,
-                        width: 3,
-                      ),
-                    ),
-                    child: ClipOval(
-                      child: profileImage != null
-                          ? Image.file(
-                              profileImage!,
-                              fit: BoxFit.cover,
-                              width: 150,
-                              height: 150,
-                            )
-                          : const Icon(
-                              Icons.person,
-                              size: 75,
-                              color: primaryMaroon,
-                            ),
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              Center(
-                child: TextButton.icon(
-                  onPressed: pickProfileImage,
-                  icon: const Icon(
-                    Icons.camera_alt_outlined,
-                    color: primaryMaroon,
-                  ),
-                  label: Text(
-                    profileImage != null
-                        ? (widget.isBangla
-                            ? 'ছবি পরিবর্তন করুন'
-                            : 'Change Photo')
-                        : (widget.isBangla
-                            ? 'ছবি নির্বাচন করুন'
-                            : 'Choose Photo'),
-                    style: const TextStyle(
-                      color: primaryMaroon,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-
-              // ==================================================
-              // ADDITIONAL PHOTOS
-              // ==================================================
-
-              const SizedBox(height: 10),
-
-              sectionHeader(
-                icon: Icons.photo_library_outlined,
-                title: widget.isBangla ? 'আরো ছবি' : 'More Photos',
-                subtitle: widget.isBangla
-                    ? 'সর্বোচ্চ ৫টা ছবি যোগ করুন (${additionalImages.length}/5)'
-                    : 'Add up to 5 more photos (${additionalImages.length}/5)',
-              ),
-
-              const SizedBox(height: 4),
-
-              SizedBox(
-                height: 110,
+      // ✅ Column + Expanded ব্যবহার করে নিচে ব্যানার অ্যাড বসানো হলো
+      body: Column(
+        children: [
+          Expanded(
+            child: SafeArea(
+              child: Form(
+                key: formKey,
                 child: ListView(
-                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(
+                    20,
+                    10,
+                    20,
+                    30,
+                  ),
                   children: [
-                    // Add button
-                    if (additionalImages.length < 5)
-                      GestureDetector(
-                        onTap: pickAdditionalImage,
+                    // ==================================================
+                    // MAIN PROFILE PHOTO
+                    // ==================================================
+
+                    sectionHeader(
+                      icon: Icons.photo_camera_outlined,
+                      title: widget.isBangla ? 'প্রোফাইল ছবি' : 'Profile Photo',
+                      subtitle: widget.isBangla
+                          ? 'আপনার একটি পরিষ্কার ছবি দিন'
+                          : 'Add a clear profile photo',
+                    ),
+
+                    Center(
+                      child: GestureDetector(
+                        onTap: pickProfileImage,
                         child: Container(
-                          width: 100,
-                          height: 110,
-                          margin: const EdgeInsets.only(right: 10),
+                          width: 150,
+                          height: 150,
                           decoration: BoxDecoration(
+                            shape: BoxShape.circle,
                             color: lightMaroon,
-                            borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                              color: primaryMaroon.withValues(alpha: 0.4),
-                              width: 1.5,
+                              color: primaryGold,
+                              width: 3,
                             ),
                           ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.add_photo_alternate_outlined,
-                                color: primaryMaroon,
-                                size: 32,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                widget.isBangla ? 'যোগ করুন' : 'Add',
-                                style: const TextStyle(
-                                  color: primaryMaroon,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                          child: ClipOval(
+                            child: profileImage != null
+                                ? Image.file(
+                                    profileImage!,
+                                    fit: BoxFit.cover,
+                                    width: 150,
+                                    height: 150,
+                                  )
+                                : const Icon(
+                                    Icons.person,
+                                    size: 75,
+                                    color: primaryMaroon,
+                                  ),
                           ),
                         ),
                       ),
+                    ),
 
-                    // Existing additional photos
-                    ...additionalImages.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final image = entry.value;
+                    const SizedBox(height: 12),
 
-                      return Container(
-                        width: 100,
-                        height: 110,
-                        margin: const EdgeInsets.only(right: 10),
-                        child: Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(14),
-                              child: Image.file(
-                                image,
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: pickProfileImage,
+                        icon: const Icon(
+                          Icons.camera_alt_outlined,
+                          color: primaryMaroon,
+                        ),
+                        label: Text(
+                          profileImage != null
+                              ? (widget.isBangla
+                                  ? 'ছবি পরিবর্তন করুন'
+                                  : 'Change Photo')
+                              : (widget.isBangla
+                                  ? 'ছবি নির্বাচন করুন'
+                                  : 'Choose Photo'),
+                          style: const TextStyle(
+                            color: primaryMaroon,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // ==================================================
+                    // ADDITIONAL PHOTOS
+                    // ==================================================
+
+                    const SizedBox(height: 10),
+
+                    sectionHeader(
+                      icon: Icons.photo_library_outlined,
+                      title: widget.isBangla ? 'আরো ছবি' : 'More Photos',
+                      subtitle: widget.isBangla
+                          ? 'সর্বোচ্চ ৫টা ছবি যোগ করুন (${additionalImages.length}/5)'
+                          : 'Add up to 5 more photos (${additionalImages.length}/5)',
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    SizedBox(
+                      height: 110,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          // Add button
+                          if (additionalImages.length < 5)
+                            GestureDetector(
+                              onTap: pickAdditionalImage,
+                              child: Container(
                                 width: 100,
                                 height: 110,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                            Positioned(
-                              top: 4,
-                              right: 4,
-                              child: GestureDetector(
-                                onTap: () => removeAdditionalImage(index),
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.65),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.close,
-                                    color: Colors.white,
-                                    size: 14,
+                                margin: const EdgeInsets.only(right: 10),
+                                decoration: BoxDecoration(
+                                  color: lightMaroon,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: primaryMaroon.withValues(alpha: 0.4),
+                                    width: 1.5,
                                   ),
                                 ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.add_photo_alternate_outlined,
+                                      color: primaryMaroon,
+                                      size: 32,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      widget.isBangla ? 'যোগ করুন' : 'Add',
+                                      style: const TextStyle(
+                                        color: primaryMaroon,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
+                            ),
+
+                          // Existing additional photos
+                          ...additionalImages.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final image = entry.value;
+
+                            return Container(
+                              width: 100,
+                              height: 110,
+                              margin: const EdgeInsets.only(right: 10),
+                              child: Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Image.file(
+                                      image,
+                                      width: 100,
+                                      height: 110,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: 4,
+                                    right: 4,
+                                    child: GestureDetector(
+                                      onTap: () => removeAdditionalImage(index),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black
+                                              .withValues(alpha: 0.65),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.close,
+                                          color: Colors.white,
+                                          size: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+
+                    // ==================================================
+                    // BASIC INFORMATION SUMMARY
+                    // ==================================================
+
+                    const SizedBox(height: 16),
+
+                    sectionHeader(
+                      icon: Icons.person_outline,
+                      title:
+                          widget.isBangla ? 'আপনার তথ্য' : 'Your Information',
+                    ),
+
+                    infoRow(
+                      'Name',
+                      widget.name,
+                      Icons.person_outline,
+                    ),
+
+                    infoRow(
+                      'Gender',
+                      widget.gender,
+                      Icons.wc_outlined,
+                    ),
+
+                    infoRow(
+                      'Religion',
+                      widget.religion,
+                      Icons.auto_awesome_outlined,
+                    ),
+
+                    infoRow(
+                      'Age',
+                      widget.age,
+                      Icons.cake_outlined,
+                    ),
+
+                    infoRow(
+                      'District',
+                      widget.district,
+                      Icons.location_on_outlined,
+                    ),
+
+                    infoRow(
+                      'Marital Status',
+                      widget.maritalStatus,
+                      Icons.favorite_border,
+                    ),
+
+                    // ==================================================
+                    // ABOUT ME
+                    // ==================================================
+
+                    sectionHeader(
+                      icon: Icons.edit_note_outlined,
+                      title: widget.isBangla ? 'আমার সম্পর্কে' : 'About Me',
+                      subtitle: widget.isBangla
+                          ? 'নিজের সম্পর্কে সংক্ষেপে লিখুন'
+                          : 'Tell something about yourself',
+                    ),
+
+                    TextFormField(
+                      controller: aboutController,
+                      maxLines: 7,
+                      maxLength: 500,
+                      decoration: fieldDecoration(
+                        label: widget.isBangla ? 'আমার সম্পর্কে' : 'About Me',
+                        icon: Icons.person_pin_outlined,
+                        hint: widget.isBangla
+                            ? 'আপনার ব্যক্তিত্ব, পছন্দ, লক্ষ্য ইত্যাদি লিখুন...'
+                            : 'Write about your personality, interests and goals...',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please write something about yourself';
+                        }
+
+                        if (value.trim().length < 20) {
+                          return 'Please write at least 20 characters';
+                        }
+
+                        return null;
+                      },
+                    ),
+
+                    // ==================================================
+                    // PARTNER PREFERENCE
+                    // ==================================================
+
+                    const SizedBox(height: 18),
+
+                    sectionHeader(
+                      icon: Icons.favorite_outline,
+                      title: widget.isBangla
+                          ? 'জীবনসঙ্গীর পছন্দ'
+                          : 'Partner Preference',
+                      subtitle: widget.isBangla
+                          ? 'আপনার পছন্দের জীবনসঙ্গী সম্পর্কে জানান'
+                          : 'Tell us what you prefer in a partner',
+                    ),
+
+                    buildDropdown<String>(
+                      label: widget.isBangla ? 'পছন্দের বয়স' : 'Preferred Age',
+                      icon: Icons.cake_outlined,
+                      value: preferredAge,
+                      items: preferredAgeOptions,
+                      onChanged: (value) {
+                        setState(() {
+                          preferredAge = value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    buildDropdown<String>(
+                      label: widget.isBangla
+                          ? 'পছন্দের ধর্ম'
+                          : 'Preferred Religion',
+                      icon: Icons.auto_awesome_outlined,
+                      value: preferredReligion,
+                      items: religionOptions,
+                      onChanged: (value) {
+                        setState(() {
+                          preferredReligion = value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    buildDropdown<String>(
+                      label: widget.isBangla
+                          ? 'পছন্দের শিক্ষাগত যোগ্যতা'
+                          : 'Preferred Education',
+                      icon: Icons.school_outlined,
+                      value: preferredEducation,
+                      items: educationOptions,
+                      onChanged: (value) {
+                        setState(() {
+                          preferredEducation = value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    buildDropdown<String>(
+                      label: widget.isBangla
+                          ? 'পছন্দের পেশা'
+                          : 'Preferred Profession',
+                      icon: Icons.work_outline,
+                      value: preferredProfession,
+                      items: professionOptions,
+                      onChanged: (value) {
+                        setState(() {
+                          preferredProfession = value;
+                        });
+                      },
+                    ),
+
+                    // ==================================================
+                    // CONTINUE
+                    // ==================================================
+
+                    const SizedBox(height: 30),
+
+                    SizedBox(
+                      height: 58,
+                      child: ElevatedButton(
+                        onPressed: continueProfile,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryMaroon,
+                          foregroundColor: Colors.white,
+                          elevation: 5,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              widget.isBangla
+                                  ? 'প্রোফাইল Preview দেখুন'
+                                  : 'Preview Profile',
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Icon(
+                              Icons.arrow_forward_rounded,
                             ),
                           ],
                         ),
-                      );
-                    }),
+                      ),
+                    ),
                   ],
                 ),
               ),
-
-              // ==================================================
-              // BASIC INFORMATION SUMMARY
-              // ==================================================
-
-              const SizedBox(height: 16),
-
-              sectionHeader(
-                icon: Icons.person_outline,
-                title: widget.isBangla ? 'আপনার তথ্য' : 'Your Information',
-              ),
-
-              infoRow(
-                'Name',
-                widget.name,
-                Icons.person_outline,
-              ),
-
-              infoRow(
-                'Gender',
-                widget.gender,
-                Icons.wc_outlined,
-              ),
-
-              infoRow(
-                'Religion',
-                widget.religion,
-                Icons.auto_awesome_outlined,
-              ),
-
-              infoRow(
-                'Age',
-                widget.age,
-                Icons.cake_outlined,
-              ),
-
-              infoRow(
-                'District',
-                widget.district,
-                Icons.location_on_outlined,
-              ),
-
-              infoRow(
-                'Marital Status',
-                widget.maritalStatus,
-                Icons.favorite_border,
-              ),
-
-              // ==================================================
-              // ABOUT ME
-              // ==================================================
-
-              sectionHeader(
-                icon: Icons.edit_note_outlined,
-                title: widget.isBangla ? 'আমার সম্পর্কে' : 'About Me',
-                subtitle: widget.isBangla
-                    ? 'নিজের সম্পর্কে সংক্ষেপে লিখুন'
-                    : 'Tell something about yourself',
-              ),
-
-              TextFormField(
-                controller: aboutController,
-                maxLines: 7,
-                maxLength: 500,
-                decoration: fieldDecoration(
-                  label: widget.isBangla ? 'আমার সম্পর্কে' : 'About Me',
-                  icon: Icons.person_pin_outlined,
-                  hint: widget.isBangla
-                      ? 'আপনার ব্যক্তিত্ব, পছন্দ, লক্ষ্য ইত্যাদি লিখুন...'
-                      : 'Write about your personality, interests and goals...',
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please write something about yourself';
-                  }
-
-                  if (value.trim().length < 20) {
-                    return 'Please write at least 20 characters';
-                  }
-
-                  return null;
-                },
-              ),
-
-              // ==================================================
-              // PARTNER PREFERENCE
-              // ==================================================
-
-              const SizedBox(height: 18),
-
-              sectionHeader(
-                icon: Icons.favorite_outline,
-                title:
-                    widget.isBangla ? 'জীবনসঙ্গীর পছন্দ' : 'Partner Preference',
-                subtitle: widget.isBangla
-                    ? 'আপনার পছন্দের জীবনসঙ্গী সম্পর্কে জানান'
-                    : 'Tell us what you prefer in a partner',
-              ),
-
-              buildDropdown<String>(
-                label: widget.isBangla ? 'পছন্দের বয়স' : 'Preferred Age',
-                icon: Icons.cake_outlined,
-                value: preferredAge,
-                items: preferredAgeOptions,
-                onChanged: (value) {
-                  setState(() {
-                    preferredAge = value;
-                  });
-                },
-              ),
-
-              const SizedBox(height: 14),
-
-              buildDropdown<String>(
-                label: widget.isBangla ? 'পছন্দের ধর্ম' : 'Preferred Religion',
-                icon: Icons.auto_awesome_outlined,
-                value: preferredReligion,
-                items: religionOptions,
-                onChanged: (value) {
-                  setState(() {
-                    preferredReligion = value;
-                  });
-                },
-              ),
-
-              const SizedBox(height: 14),
-
-              buildDropdown<String>(
-                label: widget.isBangla
-                    ? 'পছন্দের শিক্ষাগত যোগ্যতা'
-                    : 'Preferred Education',
-                icon: Icons.school_outlined,
-                value: preferredEducation,
-                items: educationOptions,
-                onChanged: (value) {
-                  setState(() {
-                    preferredEducation = value;
-                  });
-                },
-              ),
-
-              const SizedBox(height: 14),
-
-              buildDropdown<String>(
-                label:
-                    widget.isBangla ? 'পছন্দের পেশা' : 'Preferred Profession',
-                icon: Icons.work_outline,
-                value: preferredProfession,
-                items: professionOptions,
-                onChanged: (value) {
-                  setState(() {
-                    preferredProfession = value;
-                  });
-                },
-              ),
-
-              // ==================================================
-              // CONTINUE
-              // ==================================================
-
-              const SizedBox(height: 30),
-
-              SizedBox(
-                height: 58,
-                child: ElevatedButton(
-                  onPressed: continueProfile,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryMaroon,
-                    foregroundColor: Colors.white,
-                    elevation: 5,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        widget.isBangla
-                            ? 'প্রোফাইল Preview দেখুন'
-                            : 'Preview Profile',
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      const Icon(
-                        Icons.arrow_forward_rounded,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          // ✅ Fixed Banner Ad at the bottom
+          const SafeArea(
+            top: false,
+            child: BannerAdWidget(
+              placementId: AdConfig
+                  .placementProfileView, // আপনার প্রয়োজন অনুযায়ী আইডি পরিবর্তন করুন
+            ),
+          ),
+        ],
       ),
     );
   }
