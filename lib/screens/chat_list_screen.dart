@@ -8,6 +8,8 @@ import '../models/user_profile.dart';
 import '../services/chat_service.dart';
 import '../widgets/verified_badge.dart';
 import 'chat_screen.dart';
+import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
+import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
 
 // ============================================================
 // CHAT LIST SCREEN — Delete + Archive
@@ -96,64 +98,74 @@ class _ChatListScreenState extends State<ChatListScreen>
           ],
         ),
       ),
-      // ✅ SINGLE STREAM: একটাই StreamBuilder, ভেতরে ফিল্টার
-      body: _myUid == null
-          ? const Center(child: CircularProgressIndicator(color: primaryMaroon))
-          : StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('chats')
-                  .where('users', arrayContains: _myUid)
-                  .orderBy('lastMessageTime', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: primaryMaroon),
-                  );
-                }
+      // ✅ Column ব্যবহার করে নিচে ব্যানার অ্যাড বসানো হলো
+      body: Column(
+        children: [
+          Expanded(
+            child: _myUid == null
+                ? const Center(
+                    child: CircularProgressIndicator(color: primaryMaroon))
+                : StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('chats')
+                        .where('users', arrayContains: _myUid)
+                        .orderBy('lastMessageTime', descending: true)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child:
+                              CircularProgressIndicator(color: primaryMaroon),
+                        );
+                      }
 
-                if (snapshot.hasError) {
-                  debugPrint('❌ Chats stream error: ${snapshot.error}');
-                  return Center(
-                    child: Text(
-                      bn ? 'লোড করা যায়নি' : 'Could not load',
-                      style: const TextStyle(color: secondaryText),
-                    ),
-                  );
-                }
-                final allChats = snapshot.data?.docs ?? [];
+                      if (snapshot.hasError) {
+                        debugPrint('❌ Chats stream error: ${snapshot.error}');
+                        return Center(
+                          child: Text(
+                            bn ? 'লোড করা যায়নি' : 'Could not load',
+                            style: const TextStyle(color: secondaryText),
+                          ),
+                        );
+                      }
+                      final allChats = snapshot.data?.docs ?? [];
 
-                // ✅ Active Chats (Archived নয়, Deleted নয়)
-                final activeChats = allChats.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  // ✅ FIX: ডট নোটেশন ব্যবহার করে সরাসরি ফিল্ড চেক করা হচ্ছে
-                  final isDeleted = data['deletedFor.$_myUid'] == true;
-                  final isArchived = data['archivedFor.$_myUid'] == true;
-                  return !isDeleted && !isArchived;
-                }).toList();
+                      // ✅ Active Chats (Archived নয়, Deleted নয়)
+                      final activeChats = allChats.where((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final isDeleted = data['deletedFor.$_myUid'] == true;
+                        final isArchived = data['archivedFor.$_myUid'] == true;
+                        return !isDeleted && !isArchived;
+                      }).toList();
 
-                // ✅ Archived Chats (Archived, Deleted নয়)
-                final archivedChats = allChats.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  // ✅ FIX: ডট নোটেশন ব্যবহার করে সরাসরি ফিল্ড চেক করা হচ্ছে
-                  final isDeleted = data['deletedFor.$_myUid'] == true;
-                  final isArchived = data['archivedFor.$_myUid'] == true;
-                  return !isDeleted && isArchived;
-                }).toList();
+                      // ✅ Archived Chats (Archived, Deleted নয়)
+                      final archivedChats = allChats.where((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final isDeleted = data['deletedFor.$_myUid'] == true;
+                        final isArchived = data['archivedFor.$_myUid'] == true;
+                        return !isDeleted && isArchived;
+                      }).toList();
 
-                debugPrint('📋 [ChatList] total=${allChats.length}, '
-                    'active=${activeChats.length}, '
-                    'archived=${archivedChats.length}');
+                      debugPrint('📋 [ChatList] total=${allChats.length}, '
+                          'active=${activeChats.length}, '
+                          'archived=${archivedChats.length}');
 
-                return TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildListFromDocs(activeChats, bn, false),
-                    _buildListFromDocs(archivedChats, bn, true),
-                  ],
-                );
-              },
-            ),
+                      return TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildListFromDocs(activeChats, bn, false),
+                          _buildListFromDocs(archivedChats, bn, true),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+          // ✅ Fixed Banner Ad
+          const BannerAdWidget(
+            placementId: AdConfig.placementChatList,
+          ),
+        ],
+      ),
     );
   }
 
