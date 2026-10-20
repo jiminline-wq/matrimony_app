@@ -46,18 +46,16 @@ class FcmService {
     'Incoming Calls',
     importance: Importance.max,
     playSound: true,
-    sound:
-        RawResourceAndroidNotificationSound('ringtone'), // ✅ কলের জন্য রিংটোন
+    sound: RawResourceAndroidNotificationSound('ringtone'),
     enableVibration: true,
   );
 
-  // ✅ সাধারণ নোটিফিকেশন চ্যানেল (v5) - চ্যাট, ম্যাচ (ডিফল্ট সাউন্ড)
+  // ✅ সাধারণ নোটিফিকেশন চ্যানেল (v5) - চ্যাট, ম্যাচ
   static const _generalChannel = AndroidNotificationChannel(
-    'general_channel_v5', // ✅ v5 করুন
+    'general_channel_v5',
     'General Notifications',
     importance: Importance.high,
     playSound: true,
-    // sound: 'default', // ❌ এটি দিলে এরর আসে, তাই বাদ দিন। শুধু playSound:true দিলেই ডিফল্ট বাজবে।
   );
 
   // ============================================================
@@ -79,6 +77,12 @@ class FcmService {
         onDidReceiveNotificationResponse: (response) {
           if (response.payload != null) {
             final data = jsonDecode(response.payload!);
+
+            // ✅ নটিফিকেশনে ক্লিক করলে কল নোটিফিকেশনটি সাথে সাথে ক্যানসেল করে দিন
+            if (data['callId'] != null) {
+              cancelCallNotification(data['callId'].hashCode);
+            }
+
             NavigationService.handleNotificationTap(
               Map<String, dynamic>.from(data),
             );
@@ -111,8 +115,14 @@ class FcmService {
       // ✅ অ্যাপ ব্যাকগ্রাউন্ডে থাকলে নোটিফিকেশনে ক্লিক
       _openedAppSub = FirebaseMessaging.onMessageOpenedApp.listen((message) {
         debugPrint('🔔 Message opened app: ${message.data}');
+
+        final data = message.data;
+        if (data['callId'] != null) {
+          cancelCallNotification(data['callId'].hashCode);
+        }
+
         NavigationService.handleNotificationTap(
-          Map<String, dynamic>.from(message.data),
+          Map<String, dynamic>.from(data),
         );
       });
 
@@ -120,14 +130,34 @@ class FcmService {
       final initialMessage = await _messaging.getInitialMessage();
       if (initialMessage != null) {
         debugPrint('🔔 Initial message: ${initialMessage.data}');
+        final data = initialMessage.data;
+        if (data['callId'] != null) {
+          cancelCallNotification(data['callId'].hashCode);
+        }
         NavigationService.handleNotificationTap(
-          Map<String, dynamic>.from(initialMessage.data),
+          Map<String, dynamic>.from(data),
         );
       }
     } catch (e) {
       debugPrint('❌ FCM init error: $e');
       _initialized = false;
     }
+  }
+
+  // ============================================================
+  // ✅ SPECIFIC NOTIFICATION CANCELLATION (রিং বন্ধ করার জন্য অত্যন্ত জরুরি)
+  // ============================================================
+  static Future<void> cancelCallNotification(int notificationId) async {
+    try {
+      await _localNotifications.cancel(notificationId);
+      debugPrint('🔕 Call notification cancelled: $notificationId');
+    } catch (e) {
+      debugPrint('❌ Failed to cancel call notification: $e');
+    }
+  }
+
+  static Future<void> cancelAllNotifications() async {
+    await _localNotifications.cancelAll();
   }
 
   // ============================================================
@@ -140,12 +170,11 @@ class FcmService {
     final body = data['body'] ?? 'আপনার জন্য নতুন নোটিফিকেশন আছে';
 
     final androidDetails = AndroidNotificationDetails(
-      'general_channel_v5', // ✅ v5 করুন
+      'general_channel_v5',
       'General Notifications',
       importance: Importance.high,
       priority: Priority.high,
       playSound: true,
-      // sound: 'default', // ❌ ডিলিট করুন
       icon: '@mipmap/ic_launcher',
     );
 
@@ -177,12 +206,11 @@ class FcmService {
     final body = data['body'] ?? 'আপনার জন্য নতুন নোটিফিকেশন আছে';
 
     final androidDetails = AndroidNotificationDetails(
-      'general_channel_v5', // ✅ v5 করুন
+      'general_channel_v5',
       'General Notifications',
       importance: Importance.high,
       priority: Priority.high,
       playSound: true,
-      // sound: 'default', // ❌ ডিলিট করুন
       icon: '@mipmap/ic_launcher',
       autoCancel: true,
     );
@@ -201,8 +229,7 @@ class FcmService {
   // ============================================================
   static Future<void> showBackgroundCallNotification(
       RemoteMessage message) async {
-    debugPrint(
-        '🚨🚨 [BACKGROUND HANDLER] CALL TRIGGERED! Data: ${message.data}');
+    debugPrint('🚨 [BACKGROUND HANDLER] CALL TRIGGERED! Data: ${message.data}');
 
     final FlutterLocalNotificationsPlugin localNotif =
         FlutterLocalNotificationsPlugin();
@@ -218,14 +245,17 @@ class FcmService {
     final isVideoCall = data['isVideoCall'] == 'true';
     final callerName = data['callerName'] ?? 'Someone';
 
+    // ইউনিক নোটিফিকেশন আইডি (কল আইডি থেকে জেনারেট করা)
+    final int notifId =
+        data['callId']?.hashCode ?? DateTime.now().millisecondsSinceEpoch;
+
     final androidDetails = AndroidNotificationDetails(
       'call_channel_v9',
       'Incoming Calls',
       importance: Importance.max,
       priority: Priority.max,
       playSound: true,
-      sound: const RawResourceAndroidNotificationSound(
-          'ringtone'), // ✅ কলের জন্য রিংটোন
+      sound: const RawResourceAndroidNotificationSound('ringtone'),
       enableVibration: true,
       category: AndroidNotificationCategory.call,
       fullScreenIntent: true,
@@ -235,7 +265,7 @@ class FcmService {
     );
 
     await localNotif.show(
-      data['callId']?.hashCode ?? DateTime.now().millisecondsSinceEpoch,
+      notifId,
       isVideoCall ? '📹 Incoming Video Call' : '📞 Incoming Call',
       '$callerName is calling you...',
       NotificationDetails(android: androidDetails),
