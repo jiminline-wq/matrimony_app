@@ -9,7 +9,9 @@ import 'user_profile_view_screen.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/chat_icon_button.dart';
 import '../widgets/verified_badge.dart';
-import '../utils/ai_match_service.dart'; // ✅ এই লাইনটি যোগ করুন
+import '../utils/ai_match_service.dart';
+import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
+import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
 
 // ============================================================
 // MATCHES TAB — AI Match Score Added
@@ -27,7 +29,7 @@ class MatchesTab extends StatefulWidget {
 class _MatchesTabState extends State<MatchesTab> {
   List<Map<String, dynamic>> matches = [];
   bool isLoading = true;
-  UserProfile? _myProfile; // ✅ নিজের প্রোফাইল রাখার জন্য
+  UserProfile? _myProfile;
 
   @override
   void initState() {
@@ -103,15 +105,13 @@ class _MatchesTabState extends State<MatchesTab> {
               'matchId': doc.id,
               'user': otherUserMap,
               'profile': otherUserProfile,
-              'score': matchScore, // স্কোর সেভ করা হলো
+              'score': matchScore,
             });
           }
-        } catch (_) {
-          // Error হলে skip
-        }
+        } catch (_) {}
       }
 
-      // ✅ ৪. স্কোর অনুযায়ী সর্ট করুন (সবচেয়ে বেশি স্কোর উপরে থাকবে)
+      // ✅ ৪. স্কোর অনুযায়ী সর্ট করুন
       loadedMatches.sort(
           (a, b) => (b['score'] as double).compareTo(a['score'] as double));
 
@@ -124,66 +124,6 @@ class _MatchesTabState extends State<MatchesTab> {
         isLoading = false;
       });
     }
-  }
-
-  // ============================================================
-  // 🧠 AI MATCH SCORE ALGORITHM (0 - 100)
-  // ============================================================
-  double _calculateAiMatchScore(UserProfile myProfile, UserProfile targetUser) {
-    double score = 0.0;
-
-    // ১. বয়স ম্যাচিং (সর্বোচ্চ ৩০ পয়েন্ট)
-    final myAge = int.tryParse(myProfile.age) ?? 0;
-    final targetAge = int.tryParse(targetUser.age) ?? 0;
-    if (myAge > 0 && targetAge > 0) {
-      final ageDiff = (myAge - targetAge).abs();
-      if (ageDiff <= 3) {
-        score += 30;
-      } else if (ageDiff <= 5) {
-        score += 20;
-      } else if (ageDiff <= 8) {
-        score += 10;
-      } else {
-        score += 5;
-      }
-    } else {
-      score += 15; // বয়স জানা না থাকলে ডিফল্ট
-    }
-
-    // ২. ধর্ম ম্যাচিং (সর্বোচ্চ ২০ পয়েন্ট)
-    if (myProfile.religion == targetUser.religion ||
-        myProfile.preferredReligion == targetUser.religion) {
-      score += 20;
-    } else {
-      score += 5;
-    }
-
-    // ৩. জেলা/লোকেশন ম্যাচিং (সর্বোচ্চ ২০ পয়েন্ট)
-    if (myProfile.district == targetUser.district) {
-      score += 20;
-    } else {
-      score += 5;
-    }
-
-    // ৪. শিক্ষা ম্যাচিং (সর্বোচ্চ ১৫ পয়েন্ট)
-    // (সাধারণ স্ট্রিং ম্যাচ, আপনি চাইলে contains ব্যবহার করতে পারেন)
-    if (myProfile.education == targetUser.education ||
-        myProfile.preferredEducation == targetUser.education) {
-      score += 15;
-    } else {
-      score += 5;
-    }
-
-    // ৫. পেশা ম্যাচিং (সর্বোচ্চ ১৫ পয়েন্ট)
-    if (myProfile.profession == targetUser.profession ||
-        myProfile.preferredProfession == targetUser.profession) {
-      score += 15;
-    } else {
-      score += 5;
-    }
-
-    // স্কোর ১০০ এর বেশি হলে ১০০ করে দিন
-    return score > 100 ? 100.0 : score;
   }
 
   // ============================================================
@@ -274,7 +214,16 @@ class _MatchesTabState extends State<MatchesTab> {
           const SizedBox(width: 8),
         ],
       ),
-      body: _buildBody(bn),
+      body: Column(
+        children: [
+          Expanded(child: _buildBody(bn)),
+
+          // ✅ Fixed Banner Ad at the bottom
+          const BannerAdWidget(
+            placementId: AdConfig.placementMatches,
+          ),
+        ],
+      ),
     );
   }
 
@@ -362,7 +311,7 @@ class _MatchesTabState extends State<MatchesTab> {
         itemBuilder: (context, index) {
           final match = matches[index];
           final otherUser = match['user'] as Map<String, dynamic>;
-          final score = match['score'] as double? ?? 0.0; // ✅ স্কোর নিন
+          final score = match['score'] as double? ?? 0.0;
 
           return _buildMatchCard(otherUser, bn, score);
         },
@@ -371,7 +320,7 @@ class _MatchesTabState extends State<MatchesTab> {
   }
 
   // ============================================================
-  // MATCH CARD — AI Score Badge Added
+  // MATCH CARD
   // ============================================================
   Widget _buildMatchCard(
       Map<String, dynamic> otherUser, bool bn, double score) {
@@ -438,7 +387,6 @@ class _MatchesTabState extends State<MatchesTab> {
                           color: primaryMaroon,
                         ),
                         const SizedBox(width: 5),
-                        // ✅ Verified Badge সহ Name
                         Expanded(
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
