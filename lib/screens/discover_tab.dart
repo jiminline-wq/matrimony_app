@@ -16,9 +16,10 @@ import '../widgets/chat_icon_button.dart';
 import '../widgets/verified_badge.dart';
 import '../ads/banner_ad_widget.dart';
 import '../ads/ad_config.dart';
+import '../ads/rewarded_ad_manager.dart'; // ✅ রিওয়ার্ডেড অ্যাড ইমপোর্ট
 
 // ============================================================
-// DISCOVER TAB — Card Swiper with Pagination
+// DISCOVER TAB — Card Swiper with Pagination & Rewarded Ad Limit
 // ============================================================
 
 class DiscoverTab extends StatefulWidget {
@@ -51,12 +52,18 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
   int _currentIndex = 0;
 
+  // ✅ রিওয়ার্ডেড অ্যাড লিমিট স্টেট
+  int _swipedCount = 0;
+  int _currentLimit = 20; // প্রথমে ২০টি ফ্রি
+  bool _isAdLoading = false;
+
   final CardSwiperController _swiperController = CardSwiperController();
 
   @override
   void initState() {
     super.initState();
     _loadMyInfo();
+    RewardedAdManager.loadAd(); // ✅ অ্যাড আগে থেকে লোড করে রাখি
   }
 
   @override
@@ -125,6 +132,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
         isLoadingMore = false;
         _currentIndex = 0;
         errorMessage = null;
+        // ✅ ফিল্টার চেঞ্জ বা রিফ্রেশ করলে লিমিট আবার ২০ এ ফিরে যাবে
+        _swipedCount = 0;
+        _currentLimit = 20;
       });
 
       try {
@@ -136,9 +146,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
         _likedUids = likedSnapshot.docs.map((doc) => doc.id).toSet();
 
         _blockedUids = await BlockReportService.getBlockedUids(user.uid);
-
-        debugPrint(
-            '🟢 [Discover] liked=${_likedUids.length}, blocked=${_blockedUids.length}');
       } catch (e) {
         debugPrint('⚠️ [Discover] likes/blocked load failed: $e');
       }
@@ -154,8 +161,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
     try {
       final batch = await _fetchNextBatch(user.uid);
-      debugPrint('🟢 [Discover] batch fetched: ${batch.length} users');
-
       final boostedUids = await BoostService.getBoostedUids();
 
       final List<UserProfile> oppositeBoosted = [];
@@ -192,8 +197,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
         isLoadingMore = false;
         errorMessage = null;
       });
-
-      debugPrint('✅ [Discover] total users = ${users.length}');
     } catch (e) {
       debugPrint('❌ [Discover] loadUsers error: $e');
       setState(() {
@@ -207,7 +210,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
   }
 
   // ============================================================
-  // FETCH NEXT BATCH — simplified (no composite index needed)
+  // FETCH NEXT BATCH
   // ============================================================
   Future<List<UserProfile>> _fetchNextBatch(String myUid) async {
     final result = <UserProfile>[];
@@ -215,10 +218,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
     while (result.length < _pageSize && hasMore && attempts < 5) {
       attempts++;
-
       Query query = FirebaseFirestore.instance.collection('users');
 
-      // ✅ Filter conditions (single field each — no composite index)
       if (_currentFilter.gender != null) {
         query = query.where('gender', isEqualTo: _currentFilter.gender);
       }
@@ -226,8 +227,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
         query = query.where('district', isEqualTo: _currentFilter.district);
       }
 
-      // ✅ Simple orderBy on a field that exists (uid is common)
-      //    Fallback: no orderBy at all if uid isn't indexed
       query = query.limit(_pageSize);
 
       if (_lastDoc != null) {
@@ -235,8 +234,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
       }
 
       final snapshot = await query.get();
-      debugPrint(
-          '🟢 [Discover] attempt $attempts: got ${snapshot.docs.length} docs');
 
       if (snapshot.docs.isEmpty) {
         hasMore = false;
@@ -250,7 +247,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
         final data = doc.data() as Map<String, dynamic>;
         final uid = (data['uid'] as String? ?? doc.id).trim();
 
-        // Skip: self, empty, liked, blocked, deactivated
         if (uid.isEmpty || uid == myUid) continue;
         if (_likedUids.contains(uid)) continue;
         if (_blockedUids.contains(uid)) continue;
@@ -258,7 +254,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
         final profile = UserProfile.fromMap(data, docId: doc.id);
 
-        // Age filter
         final age = int.tryParse(profile.age);
         if (age != null) {
           if (age < _currentFilter.ageRange.start.round() ||
@@ -267,7 +262,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
           }
         }
 
-        // Education filter
         if (_currentFilter.education != null &&
             !profile.education
                 .toLowerCase()
@@ -275,7 +269,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
           continue;
         }
 
-        // Profession filter
         if (_currentFilter.profession != null &&
             !profile.profession
                 .toLowerCase()
@@ -290,9 +283,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
     return result;
   }
 
-  // ============================================================
-  // LOAD MORE
-  // ============================================================
   Future<void> _loadMore() async {
     if (isLoading || isLoadingMore || !hasMore) return;
     setState(() => isLoadingMore = true);
@@ -312,12 +302,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
   bool _isOppositeGender(String otherGender) {
     if (_myGender == null || _myGender!.isEmpty) return false;
     if (otherGender.isEmpty) return false;
-
     final me = _myGender!.toLowerCase().trim();
     final other = otherGender.toLowerCase().trim();
-
     if (me == other) return false;
-
     if ((me == 'male' && other == 'female') ||
         (me == 'female' && other == 'male')) {
       return true;
@@ -332,6 +319,93 @@ class _DiscoverTabState extends State<DiscoverTab> {
   }
 
   // ============================================================
+  // ✅ রিওয়ার্ডেড অ্যাড প্রম্পট ডায়ালগ
+  // ============================================================
+  Future<void> _showAdPrompt() async {
+    if (_isAdLoading) return;
+    _isAdLoading = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.lock, color: primaryGold, size: 28),
+            const SizedBox(width: 8),
+            Text(
+              widget.isBangla ? 'লিমিট শেষ!' : 'Limit Reached!',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Text(
+          widget.isBangla
+              ? 'আপনি $_currentLimit টি প্রোফাইল দেখেছেন। আরও ১০টি প্রোফাইল দেখতে একটি ছোট বিজ্ঞাপন দেখুন।'
+              : 'You have viewed $_currentLimit profiles. Watch a short ad to see 10 more profiles.',
+          style: const TextStyle(fontSize: 15, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _isAdLoading = false;
+            },
+            child: Text(
+              widget.isBangla ? 'বাতিল' : 'Cancel',
+              style: const TextStyle(color: secondaryText),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              // ✅ অ্যাড দেখানোর লজিক
+              final success = await RewardedAdManager.showAd(
+                onUserEarnedReward: () {},
+              );
+
+              if (success) {
+                setState(() {
+                  _currentLimit += 10; // ✅ আরও ১০টি লিমিট বাড়বে
+                });
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(widget.isBangla
+                          ? '✅ আরও ১০টি প্রোফাইল আনলক হয়েছে!'
+                          : '✅ 10 more profiles unlocked!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } else {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(widget.isBangla
+                          ? 'বিজ্ঞাপনটি শেষ পর্যন্ত দেখতে হবে!'
+                          : 'You must watch the full ad!'),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
+              }
+              _isAdLoading = false;
+            },
+            icon: const Icon(Icons.play_circle_fill),
+            label: Text(widget.isBangla ? 'অ্যাড দেখুন' : 'Watch Ad'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryMaroon,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
   // LIKE USER
   // ============================================================
   Future<void> _likeUser(UserProfile targetUser) async {
@@ -339,10 +413,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
     if (myUser == null) return;
 
     if (myUser.uid.trim().isEmpty) return;
-    if (targetUser.uid.trim().isEmpty) {
-      debugPrint('❌ Target uid empty — skip: ${targetUser.name}');
-      return;
-    }
+    if (targetUser.uid.trim().isEmpty) return;
 
     try {
       await LikeService.likeUser(myUid: myUser.uid, theirUid: targetUser.uid);
@@ -430,9 +501,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
       barrierDismissible: false,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
-          ),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -451,10 +521,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
                 Text(
                   bn ? '🎉 এটা একটা Match!' : '🎉 It\'s a Match!',
                   style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: mainText,
-                  ),
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: mainText),
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -463,19 +532,13 @@ class _DiscoverTabState extends State<DiscoverTab> {
                       : 'You and ${targetUser.name} liked each other.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 14,
-                    color: secondaryText,
-                    height: 1.5,
-                  ),
+                      fontSize: 14, color: secondaryText, height: 1.5),
                 ),
                 const SizedBox(height: 22),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildDialogPhoto(
-                      myPhotoUrl, // ✅ ফায়ারস্টোর থেকে আসা ছবি
-                      isMy: true,
-                    ),
+                    _buildDialogPhoto(myPhotoUrl, isMy: true),
                     Transform.translate(
                       offset: const Offset(-12, 0),
                       child:
@@ -493,15 +556,12 @@ class _DiscoverTabState extends State<DiscoverTab> {
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                          borderRadius: BorderRadius.circular(16)),
                     ),
                     child: Text(
                       bn ? 'দেখতে থাকুন' : 'Keep Swiping',
                       style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
+                          fontSize: 15, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -524,14 +584,12 @@ class _DiscoverTabState extends State<DiscoverTab> {
       ),
       child: ClipOval(
         child: (url != null && url.isNotEmpty)
-            ? Image.network(
-                url,
+            ? Image.network(url,
                 width: 80,
                 height: 80,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) =>
-                    const Icon(Icons.person, size: 40, color: primaryMaroon),
-              )
+                    const Icon(Icons.person, size: 40, color: primaryMaroon))
             : const Icon(Icons.person, size: 40, color: primaryMaroon),
       ),
     );
@@ -550,10 +608,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
             child: Text(
               bn ? 'আপনার পছন্দের সঙ্গী খুঁজুন' : 'Find your match',
               style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                color: mainText,
-              ),
+                  fontSize: 15, fontWeight: FontWeight.bold, color: mainText),
             ),
           ),
           GestureDetector(
@@ -576,54 +631,39 @@ class _DiscoverTabState extends State<DiscoverTab> {
                 color: _currentFilter.isActive ? primaryMaroon : Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: primaryMaroon.withValues(alpha: 0.3),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryMaroon.withValues(alpha: 0.10),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                    color: primaryMaroon.withValues(alpha: 0.3), width: 1.5),
               ),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.tune,
-                    size: 18,
-                    color:
-                        _currentFilter.isActive ? Colors.white : primaryMaroon,
-                  ),
+                  Icon(Icons.tune,
+                      size: 18,
+                      color: _currentFilter.isActive
+                          ? Colors.white
+                          : primaryMaroon),
                   const SizedBox(width: 6),
                   Text(
                     bn ? 'ফিল্টার' : 'Filter',
                     style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: _currentFilter.isActive
-                          ? Colors.white
-                          : primaryMaroon,
-                    ),
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: _currentFilter.isActive
+                            ? Colors.white
+                            : primaryMaroon),
                   ),
                   if (_currentFilter.isActive) ...[
                     const SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 1,
-                      ),
+                          horizontal: 6, vertical: 1),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10)),
                       child: Text(
                         '${_currentFilter.activeCount}',
                         style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: primaryMaroon,
-                        ),
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: primaryMaroon),
                       ),
                     ),
                   ],
@@ -652,10 +692,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
         automaticallyImplyLeading: false,
         title: Text(
           bn ? 'আপনার সঙ্গী খুঁজুন' : 'Find Your Match',
-          style: const TextStyle(
-            color: deepMaroon,
-            fontWeight: FontWeight.bold,
-          ),
+          style:
+              const TextStyle(color: deepMaroon, fontWeight: FontWeight.bold),
         ),
         actions: [
           ChatIconButton(isBangla: bn),
@@ -668,18 +706,11 @@ class _DiscoverTabState extends State<DiscoverTab> {
   }
 
   Widget _buildBody(bool bn) {
-    // ---------------------------------------------------------
-    // Loading
-    // ---------------------------------------------------------
     if (isLoading) {
       return const Center(
-        child: CircularProgressIndicator(color: primaryMaroon),
-      );
+          child: CircularProgressIndicator(color: primaryMaroon));
     }
 
-    // ---------------------------------------------------------
-    // Error
-    // ---------------------------------------------------------
     if (errorMessage != null) {
       return Column(
         children: [
@@ -690,24 +721,18 @@ class _DiscoverTabState extends State<DiscoverTab> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 60,
-                      color: primaryMaroon,
-                    ),
+                    const Icon(Icons.error_outline,
+                        size: 60, color: primaryMaroon),
                     const SizedBox(height: 16),
-                    Text(
-                      errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 16, color: mainText),
-                    ),
+                    Text(errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 16, color: mainText)),
                     const SizedBox(height: 20),
                     ElevatedButton(
                       onPressed: () => loadUsers(reset: true),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryMaroon,
-                        foregroundColor: Colors.white,
-                      ),
+                          backgroundColor: primaryMaroon,
+                          foregroundColor: Colors.white),
                       child: Text(bn ? 'আবার চেষ্টা করুন' : 'Retry'),
                     ),
                   ],
@@ -715,15 +740,11 @@ class _DiscoverTabState extends State<DiscoverTab> {
               ),
             ),
           ),
-          // ✅ Banner even in error state
           const BannerAdWidget(placementId: AdConfig.placementDiscover),
         ],
       );
     }
 
-    // ---------------------------------------------------------
-    // Empty state
-    // ---------------------------------------------------------
     if (users.isEmpty) {
       return Column(
         children: [
@@ -736,12 +757,11 @@ class _DiscoverTabState extends State<DiscoverTab> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      _currentFilter.isActive
-                          ? Icons.filter_alt_off
-                          : Icons.person_search,
-                      size: 80,
-                      color: primaryMaroon,
-                    ),
+                        _currentFilter.isActive
+                            ? Icons.filter_alt_off
+                            : Icons.person_search,
+                        size: 80,
+                        color: primaryMaroon),
                     const SizedBox(height: 20),
                     Text(
                       _currentFilter.isActive
@@ -753,25 +773,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
                               : 'No profiles found'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: mainText,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      _currentFilter.isActive
-                          ? (bn
-                              ? 'ফিল্টার পরিবর্তন করুন বা রিসেট করুন'
-                              : 'Change or reset your filter')
-                          : (bn
-                              ? 'নতুন user register করলে এখানে দেখা যাবে।'
-                              : 'New users will appear here.'),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: secondaryText,
-                      ),
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: mainText),
                     ),
                     const SizedBox(height: 24),
                     Row(
@@ -782,42 +786,21 @@ class _DiscoverTabState extends State<DiscoverTab> {
                           icon: const Icon(Icons.refresh),
                           label: Text(bn ? 'রিফ্রেশ' : 'Refresh'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryMaroon,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
+                              backgroundColor: primaryMaroon,
+                              foregroundColor: Colors.white),
                         ),
                         if (_currentFilter.isActive) ...[
                           const SizedBox(width: 12),
                           OutlinedButton.icon(
                             onPressed: () {
-                              setState(() {
-                                _currentFilter = FilterOptions.empty;
-                              });
+                              setState(
+                                  () => _currentFilter = FilterOptions.empty);
                               loadUsers(reset: true);
                             },
                             icon: const Icon(Icons.clear),
                             label: Text(bn ? 'ফিল্টার মুছুন' : 'Clear Filter'),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: primaryMaroon,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 12,
-                              ),
-                              side: const BorderSide(
-                                color: primaryMaroon,
-                                width: 1.5,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
+                                foregroundColor: primaryMaroon),
                           ),
                         ],
                       ],
@@ -827,15 +810,11 @@ class _DiscoverTabState extends State<DiscoverTab> {
               ),
             ),
           ),
-          // ✅ Banner even in empty state
           const BannerAdWidget(placementId: AdConfig.placementDiscover),
         ],
       );
     }
 
-    // ---------------------------------------------------------
-    // Normal state — swipe cards + banner
-    // ---------------------------------------------------------
     return Column(
       children: [
         _buildFilterBar(bn),
@@ -852,22 +831,31 @@ class _DiscoverTabState extends State<DiscoverTab> {
                     backCardOffset: const Offset(0, 30),
                     padding: const EdgeInsets.all(8),
                     onSwipe: (previousIndex, currentIndex, direction) {
+                      // ✅ লিমিট চেক
+                      if (_isAdLoading) return false;
+                      if (_swipedCount >= _currentLimit) {
+                        _showAdPrompt();
+                        return false;
+                      }
+
                       final swipedUser = users[previousIndex];
                       if (direction == CardSwiperDirection.right) {
                         _likeUser(swipedUser);
                       }
+
+                      // ✅ কাউন্ট বাড়াই
+                      setState(() {
+                        _swipedCount++;
+                      });
+
                       if (currentIndex != null) {
                         _currentIndex = currentIndex;
                         _checkAndLoadMore(currentIndex);
                       }
                       return true;
                     },
-                    cardBuilder: (
-                      context,
-                      index,
-                      horizontalOffsetPercentage,
-                      verticalOffsetPercentage,
-                    ) {
+                    cardBuilder: (context, index, horizontalOffsetPercentage,
+                        verticalOffsetPercentage) {
                       return _buildSwipeCard(users[index], bn);
                     },
                   ),
@@ -879,22 +867,14 @@ class _DiscoverTabState extends State<DiscoverTab> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            color: primaryMaroon,
-                            strokeWidth: 2,
-                          ),
-                        ),
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                color: primaryMaroon, strokeWidth: 2)),
                         const SizedBox(width: 10),
-                        Text(
-                          bn ? 'আরো লোড হচ্ছে...' : 'Loading more...',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: secondaryText,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                        Text(bn ? 'আরো লোড হচ্ছে...' : 'Loading more...',
+                            style: const TextStyle(
+                                fontSize: 12, color: secondaryText)),
                       ],
                     ),
                   ),
@@ -906,6 +886,11 @@ class _DiscoverTabState extends State<DiscoverTab> {
                       icon: Icons.close,
                       color: Colors.grey.shade400,
                       onTap: () {
+                        if (_isAdLoading) return;
+                        if (_swipedCount >= _currentLimit) {
+                          _showAdPrompt();
+                          return;
+                        }
                         _swiperController.swipe(CardSwiperDirection.left);
                       },
                     ),
@@ -914,6 +899,11 @@ class _DiscoverTabState extends State<DiscoverTab> {
                       icon: Icons.favorite,
                       color: primaryMaroon,
                       onTap: () {
+                        if (_isAdLoading) return;
+                        if (_swipedCount >= _currentLimit) {
+                          _showAdPrompt();
+                          return;
+                        }
                         _swiperController.swipe(CardSwiperDirection.right);
                       },
                     ),
@@ -936,11 +926,10 @@ class _DiscoverTabState extends State<DiscoverTab> {
     return GestureDetector(
       onTap: () {
         Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => UserProfileViewScreen(isBangla: bn, user: user),
-          ),
-        );
+            context,
+            MaterialPageRoute(
+                builder: (_) =>
+                    UserProfileViewScreen(isBangla: bn, user: user)));
       },
       behavior: HitTestBehavior.opaque,
       child: Container(
@@ -949,10 +938,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 8)),
           ],
         ),
         child: ClipRRect(
@@ -965,12 +953,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
                     : Container(
                         color: lightMaroon,
                         child: const Center(
-                          child: Icon(
-                            Icons.person,
-                            size: 100,
-                            color: primaryMaroon,
-                          ),
-                        ),
+                            child: Icon(Icons.person,
+                                size: 100, color: primaryMaroon)),
                       ),
               ),
               Positioned.fill(
@@ -983,7 +967,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
                         colors: [
                           Colors.transparent,
                           Colors.transparent,
-                          Colors.black.withValues(alpha: 0.85),
+                          Colors.black.withValues(alpha: 0.85)
                         ],
                         stops: const [0, 0.55, 1],
                       ),
@@ -998,13 +982,10 @@ class _DiscoverTabState extends State<DiscoverTab> {
                   child: IgnorePointer(
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
+                          horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [primaryGold, primaryMaroon],
-                        ),
+                            colors: [primaryGold, primaryMaroon]),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Row(
@@ -1012,14 +993,11 @@ class _DiscoverTabState extends State<DiscoverTab> {
                         children: [
                           Icon(Icons.bolt, color: Colors.white, size: 13),
                           SizedBox(width: 3),
-                          Text(
-                            'Boosted',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          Text('Boosted',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
@@ -1030,10 +1008,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
                 right: 12,
                 child: IgnorePointer(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(20),
@@ -1041,20 +1017,14 @@ class _DiscoverTabState extends State<DiscoverTab> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.touch_app,
-                          color: Colors.white,
-                          size: 13,
-                        ),
+                        const Icon(Icons.touch_app,
+                            color: Colors.white, size: 13),
                         const SizedBox(width: 4),
-                        Text(
-                          bn ? 'দেখতে ট্যাপ' : 'Tap to view',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        Text(bn ? 'দেখতে ট্যাপ' : 'Tap to view',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ),
@@ -1082,10 +1052,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
                                         ? (bn ? 'নাম নেই' : 'No name')
                                         : user.name,
                                     style: const TextStyle(
-                                      fontSize: 26,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -1099,33 +1068,25 @@ class _DiscoverTabState extends State<DiscoverTab> {
                           ),
                           if (user.age.isNotEmpty) ...[
                             const SizedBox(width: 10),
-                            Text(
-                              user.age,
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.white,
-                              ),
-                            ),
+                            Text(user.age,
+                                style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white)),
                           ],
                         ],
                       ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          const Icon(
-                            Icons.location_on,
-                            color: Colors.white,
-                            size: 16,
-                          ),
+                          const Icon(Icons.location_on,
+                              color: Colors.white, size: 16),
                           const SizedBox(width: 5),
                           Expanded(
                             child: Text(
                               user.district.isEmpty ? '—' : user.district,
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
+                                  color: Colors.white, fontSize: 14),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1136,19 +1097,14 @@ class _DiscoverTabState extends State<DiscoverTab> {
                         const SizedBox(height: 6),
                         Row(
                           children: [
-                            const Icon(
-                              Icons.work_outline,
-                              color: Colors.white,
-                              size: 16,
-                            ),
+                            const Icon(Icons.work_outline,
+                                color: Colors.white, size: 16),
                             const SizedBox(width: 5),
                             Expanded(
                               child: Text(
                                 user.profession,
                                 style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                ),
+                                    color: Colors.white, fontSize: 14),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -1185,10 +1141,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: 0.3),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
-            ),
+                color: color.withValues(alpha: 0.3),
+                blurRadius: 15,
+                offset: const Offset(0, 5)),
           ],
         ),
         child: Icon(icon, color: color, size: 30),
@@ -1216,17 +1171,14 @@ class _SwipeCardPhotoGalleryState extends State<_SwipeCardPhotoGallery> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // ✅ পরিবর্তিত কোড:
         CachedNetworkImage(
           imageUrl: widget.photoUrls[_currentIndex],
           fit: BoxFit.cover,
-          placeholder: (_, __) =>
-              Container(color: lightMaroon), // লোড হওয়ার সময়
+          placeholder: (_, __) => Container(color: lightMaroon),
           errorWidget: (_, __, ___) => Container(
             color: lightMaroon,
             child: const Center(
-              child: Icon(Icons.person, size: 100, color: primaryMaroon),
-            ),
+                child: Icon(Icons.person, size: 100, color: primaryMaroon)),
           ),
         ),
         if (widget.photoUrls.length > 1)
