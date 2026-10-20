@@ -8,7 +8,7 @@ import 'user_profile_view_screen.dart';
 import '../models/user_profile.dart';
 import '../ads/banner_ad_widget.dart';
 import '../ads/ad_config.dart';
-import '../ads/rewarded_ad_manager.dart'; // ✅ রিওয়ার্ডেড অ্যাড ইমপোর্ট
+import '../ads/rewarded_ad_manager.dart';
 
 class WhoViewedMeScreen extends StatefulWidget {
   final bool isBangla;
@@ -30,6 +30,8 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
   @override
   void initState() {
     super.initState();
+    // ✅ পেজে ঢোকার সাথে সাথেই অ্যাড লোড করা শুরু করি
+    RewardedAdManager.loadAd();
     _checkUnlockStatusAndLoad();
   }
 
@@ -151,9 +153,31 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
             );
           }
         }
+      } else {
+        // ✅ যদি অ্যাড লোড না হয় বা ইউজার পুরোটা না দেখে বন্ধ করে দেয়
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(widget.isBangla
+                  ? 'বিজ্ঞাপনটি সম্পূর্ণ দেখতে হবে। ইন্টারনেট চেক করে আবার চেষ্টা করুন।'
+                  : 'You must watch the full ad. Check internet and try again.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
       }
     } catch (e) {
       debugPrint('❌ Unlock failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.isBangla
+                ? 'কিছু ভুল হয়েছে। আবার চেষ্টা করুন।'
+                : 'Something went wrong. Try again.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isUnlocking = false);
     }
@@ -304,7 +328,6 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
                     builder: (_) =>
                         UserProfileViewScreen(isBangla: bn, user: profile))),
             child: Container(
-              // ... (এখানে আপনার আগের ভিউয়ার কার্ডের ডিজাইন হুবহু বসবে)
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
