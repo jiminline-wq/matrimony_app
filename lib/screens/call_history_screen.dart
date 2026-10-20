@@ -6,7 +6,9 @@ import '../models/call_history_entry.dart';
 import '../services/call_history_service.dart';
 import '../services/call_service.dart';
 import 'call_screen.dart';
-import 'chat_screen.dart'; // ✅ নতুন ইমপোর্ট (চ্যাট স্ক্রিনের জন্য)
+import 'chat_screen.dart';
+import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
+import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
 
 // ============================================================
 // CALL HISTORY SCREEN — 4 tabs
@@ -76,39 +78,50 @@ class _CallHistoryScreenState extends State<CallHistoryScreen>
           ],
         ),
       ),
-      body: StreamBuilder<List<CallHistoryEntry>>(
-        stream: CallHistoryService.streamHistory(),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: primaryMaroon),
-            );
-          }
+      // ✅ Column + Expanded ব্যবহার করে নিচে ব্যানার অ্যাড বসানো হলো
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<List<CallHistoryEntry>>(
+              stream: CallHistoryService.streamHistory(),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: primaryMaroon),
+                  );
+                }
 
-          final all = snap.data ?? [];
+                final all = snap.data ?? [];
 
-          return TabBarView(
-            controller: _tabCtrl,
-            children: [
-              _buildList(all, bn, 'all'),
-              _buildList(
-                all.where((e) => e.isMissedFor(_myUid ?? '')).toList(),
-                bn,
-                'missed',
-              ),
-              _buildList(
-                all.where((e) => e.isOutgoing(_myUid ?? '')).toList(),
-                bn,
-                'outgoing',
-              ),
-              _buildList(
-                all.where((e) => !e.isOutgoing(_myUid ?? '')).toList(),
-                bn,
-                'incoming',
-              ),
-            ],
-          );
-        },
+                return TabBarView(
+                  controller: _tabCtrl,
+                  children: [
+                    _buildList(all, bn, 'all'),
+                    _buildList(
+                      all.where((e) => e.isMissedFor(_myUid ?? '')).toList(),
+                      bn,
+                      'missed',
+                    ),
+                    _buildList(
+                      all.where((e) => e.isOutgoing(_myUid ?? '')).toList(),
+                      bn,
+                      'outgoing',
+                    ),
+                    _buildList(
+                      all.where((e) => !e.isOutgoing(_myUid ?? '')).toList(),
+                      bn,
+                      'incoming',
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          // ✅ Fixed Banner Ad
+          const BannerAdWidget(
+            placementId: AdConfig.placementCallHistory,
+          ),
+        ],
       ),
     );
   }
@@ -197,7 +210,6 @@ class _CallHistoryScreenState extends State<CallHistoryScreen>
     final otherName = entry.otherUserName(uid);
     final otherPhoto = entry.otherUserPhoto(uid);
 
-    // Icon + color for direction
     IconData dirIcon;
     Color dirColor;
     if (isMissed) {
@@ -214,7 +226,6 @@ class _CallHistoryScreenState extends State<CallHistoryScreen>
       dirColor = Colors.blue;
     }
 
-    // Subtitle
     String subtitle;
     if (isMissed) {
       subtitle = bn ? 'মিসড কল' : 'Missed';
@@ -246,7 +257,6 @@ class _CallHistoryScreenState extends State<CallHistoryScreen>
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
-          // ✅ এখানে _openProfile এর পরিবর্তে _openChat কল করা হয়েছে
           onTap: () => _openChat(entry, uid),
           onLongPress: () => _showOptions(entry),
           child: Padding(
@@ -361,7 +371,7 @@ class _CallHistoryScreenState extends State<CallHistoryScreen>
   }
 
   // ============================================================
-  // ✅ OPEN CHAT SCREEN (নতুন ফাংশন)
+  // OPEN CHAT SCREEN
   // ============================================================
   void _openChat(CallHistoryEntry entry, String uid) {
     final otherId = entry.otherUserId(uid);
@@ -388,7 +398,6 @@ class _CallHistoryScreenState extends State<CallHistoryScreen>
     final otherId = entry.otherUserId(uid);
     final channelName = _generateCallRoomId(uid, otherId);
 
-    // Create call doc
     final callId = await CallService.startCall(
       channelName: channelName,
       receiverId: otherId,
