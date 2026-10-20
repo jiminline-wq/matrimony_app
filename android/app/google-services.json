@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "726052229294",
+    "project_id": "jibon-sathi-matrimony-2a163",
+    "storage_bucket": "jibon-sathi-matrimony-2a163.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:726052229294:android:f973d4515ce0f5bb99dd3f",
+        "android_client_info": {
+          "package_name": "com.example.matrimony_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCXpA7fq9g8XOUyicJ-uDhVGPDf64Ygrzo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

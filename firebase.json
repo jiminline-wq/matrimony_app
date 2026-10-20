@@ -1,0 +1,39 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "jibon-sathi-matrimony-2a163",
+          "appId": "1:726052229294:android:f973d4515ce0f5bb99dd3f",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "jibon-sathi-matrimony-2a163",
+          "configurations": {
+            "android": "1:726052229294:android:f973d4515ce0f5bb99dd3f",
+            "ios": "1:726052229294:ios:0d4efec8dc39914299dd3f",
+            "macos": "1:726052229294:ios:0d4efec8dc39914299dd3f",
+            "web": "1:726052229294:web:7d65d7ad80b5d60099dd3f",
+            "windows": "1:726052229294:web:09b0410333e1956f99dd3f"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ]
+}
