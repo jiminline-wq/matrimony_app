@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../theme/colors.dart';
 import '../models/filter_options.dart';
+import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
+import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
 
 // ============================================================
 // FILTER SCREEN
@@ -35,18 +37,68 @@ class _FilterScreenState extends State<FilterScreen> {
   // ============================================================
 
   final List<String> districts = [
-    'Bagerhat', 'Bandarban', 'Barguna', 'Barishal', 'Bhola', 'Bogura',
-    'Brahmanbaria', 'Chandpur', 'Chattogram', 'Chuadanga', "Cox's Bazar",
-    'Cumilla', 'Dhaka', 'Dinajpur', 'Faridpur', 'Feni', 'Gaibandha',
-    'Gazipur', 'Gopalganj', 'Habiganj', 'Jamalpur', 'Jashore',
-    'Jhalokathi', 'Jhenaidah', 'Joypurhat', 'Khagrachhari', 'Khulna',
-    'Kishoreganj', 'Kurigram', 'Kushtia', 'Lakshmipur', 'Lalmonirhat',
-    'Madaripur', 'Magura', 'Manikganj', 'Meherpur', 'Moulvibazar',
-    'Munshiganj', 'Mymensingh', 'Naogaon', 'Narail', 'Narayanganj',
-    'Narsingdi', 'Natore', 'Netrokona', 'Nilphamari', 'Noakhali',
-    'Pabna', 'Panchagarh', 'Patuakhali', 'Pirojpur', 'Rajbari',
-    'Rajshahi', 'Rangamati', 'Rangpur', 'Satkhira', 'Shariatpur',
-    'Sherpur', 'Sirajganj', 'Sunamganj', 'Sylhet', 'Tangail',
+    'Bagerhat',
+    'Bandarban',
+    'Barguna',
+    'Barishal',
+    'Bhola',
+    'Bogura',
+    'Brahmanbaria',
+    'Chandpur',
+    'Chattogram',
+    'Chuadanga',
+    "Cox's Bazar",
+    'Cumilla',
+    'Dhaka',
+    'Dinajpur',
+    'Faridpur',
+    'Feni',
+    'Gaibandha',
+    'Gazipur',
+    'Gopalganj',
+    'Habiganj',
+    'Jamalpur',
+    'Jashore',
+    'Jhalokathi',
+    'Jhenaidah',
+    'Joypurhat',
+    'Khagrachhari',
+    'Khulna',
+    'Kishoreganj',
+    'Kurigram',
+    'Kushtia',
+    'Lakshmipur',
+    'Lalmonirhat',
+    'Madaripur',
+    'Magura',
+    'Manikganj',
+    'Meherpur',
+    'Moulvibazar',
+    'Munshiganj',
+    'Mymensingh',
+    'Naogaon',
+    'Narail',
+    'Narayanganj',
+    'Narsingdi',
+    'Natore',
+    'Netrokona',
+    'Nilphamari',
+    'Noakhali',
+    'Pabna',
+    'Panchagarh',
+    'Patuakhali',
+    'Pirojpur',
+    'Rajbari',
+    'Rajshahi',
+    'Rangamati',
+    'Rangpur',
+    'Satkhira',
+    'Shariatpur',
+    'Sherpur',
+    'Sirajganj',
+    'Sunamganj',
+    'Sylhet',
+    'Tangail',
     'Thakurgaon',
   ];
 
@@ -196,7 +248,8 @@ class _FilterScreenState extends State<FilterScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
+        // ✅ নিচে padding বাড়ানো হলো যাতে অ্যাড ও বাটনের জন্য জায়গা থাকে
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 150),
         children: [
           // ==================================================
           // AGE RANGE
@@ -381,6 +434,7 @@ class _FilterScreenState extends State<FilterScreen> {
           ),
         ],
       ),
+      // ✅ বাটন এবং অ্যাড একসাথে নিচে ফিক্সড করা হলো
       bottomSheet: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -395,34 +449,44 @@ class _FilterScreenState extends State<FilterScreen> {
         ),
         child: SafeArea(
           top: false,
-          child: SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: ElevatedButton(
-              onPressed: _applyFilters,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryMaroon,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.check_circle_outline, size: 22),
-                  const SizedBox(width: 10),
-                  Text(
-                    bn ? 'ফিল্টার প্রয়োগ করুন' : 'Apply Filters',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: _applyFilters,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryMaroon,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.check_circle_outline, size: 22),
+                      const SizedBox(width: 10),
+                      Text(
+                        bn ? 'ফিল্টার প্রয়োগ করুন' : 'Apply Filters',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              // ✅ এখানে অ্যাডটি বসানো হলো
+              const SizedBox(height: 8),
+              const BannerAdWidget(
+                placementId: AdConfig.placementFilterApply,
+              ),
+            ],
           ),
         ),
       ),
