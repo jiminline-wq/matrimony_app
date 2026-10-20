@@ -5,12 +5,6 @@ import 'package:flutter/foundation.dart';
 // ============================================================
 // CALL SERVICE
 // Firestore-based call signaling
-//
-// ⚠️ REQUIRED FIRESTORE INDEXES (create in Firebase Console):
-//   Collection: calls
-//     - receiverId ASC, status ASC, createdAt DESC
-//     - users ARRAY, createdAt DESC
-//     - callerId ASC, createdAt DESC
 // ============================================================
 
 class CallService {
@@ -23,8 +17,7 @@ class CallService {
   static const String statusRejected = 'rejected';
   static const String statusEnded = 'ended';
   static const String statusMissed = 'missed';
-  static const String statusCancelled =
-      'cancelled'; // caller hung up before accept
+  static const String statusCancelled = 'cancelled';
 
   // ---------- Ring timeout ----------
   static const Duration ringTimeout = Duration(seconds: 45);
@@ -35,8 +28,8 @@ class CallService {
   static String? get _myUid => FirebaseAuth.instance.currentUser?.uid;
 
   // ============================================================
-// CHECK — Already in an active call? (with age guard)
-// ============================================================
+  // CHECK — Already in an active call? (with age guard)
+  // ============================================================
   static Future<bool> hasActiveCall() async {
     final myUid = _myUid;
     if (myUid == null) return false;
@@ -52,33 +45,45 @@ class CallService {
       if (snap.docs.isEmpty) return false;
 
       final now = DateTime.now();
-      const maxRingingAge =
-          Duration(seconds: 90); // ৯০s এর বেশি ringing = stale
-      const maxAcceptedAge =
-          Duration(minutes: 30); // ৩০m এর বেশি accepted = stale
+      const maxRingingAge = Duration(seconds: 90);
+      const maxAcceptedAge = Duration(minutes: 30);
+
+      final batch = _firestore.batch();
+      bool hasStale = false;
+      bool activeFound = false;
 
       for (final doc in snap.docs) {
         final data = doc.data();
         final status = data['status'] as String?;
         final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
 
-        if (createdAt == null) return true; // safety
+        if (createdAt == null) {
+          activeFound = true;
+          continue;
+        }
 
         final age = now.difference(createdAt);
 
-        if (status == statusRinging && age < maxRingingAge) return true;
-        if (status == statusAccepted && age < maxAcceptedAge) return true;
-
-        // Stale — background-এ missed mark করে দিই
-        _callsRef.doc(doc.id).update({
-          'status': statusMissed,
-          'updatedAt': FieldValue.serverTimestamp(),
-          'endedAt': FieldValue.serverTimestamp(),
-          'endedBy': 'stale-cleanup',
-        }).catchError((_) {});
+        if (status == statusRinging && age < maxRingingAge) {
+          activeFound = true;
+        } else if (status == statusAccepted && age < maxAcceptedAge) {
+          activeFound = true;
+        } else {
+          batch.update(doc.reference, {
+            'status': statusMissed,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'endedAt': FieldValue.serverTimestamp(),
+            'endedBy': 'stale-cleanup',
+          });
+          hasStale = true;
+        }
       }
 
-      return false;
+      if (hasStale) {
+        await batch.commit();
+      }
+
+      return activeFound;
     } catch (e) {
       debugPrint('❌ hasActiveCall failed: $e');
       return false;
@@ -104,13 +109,11 @@ class CallService {
         return null;
       }
 
-      // ✅ Prevent concurrent calls
       if (await hasActiveCall()) {
         debugPrint('⚠️ Already in an active call');
         return null;
       }
 
-      // Load my profile
       final myDoc = await _firestore.collection('users').doc(myUid).get();
       final myData = myDoc.data() ?? {};
       final myName = myData['name'] ?? 'User';
@@ -134,8 +137,6 @@ class CallService {
       });
 
       debugPrint('📞 Call started: ${docRef.id}');
-
-      // ✅ Auto-mark missed after ringTimeout
       _scheduleMissedCall(docRef.id);
 
       return docRef.id;
@@ -156,7 +157,6 @@ class CallService {
         final data = doc.data();
         if (data == null) return;
 
-        // শুধু ringing থাকলে missed করব
         if (data['status'] == statusRinging) {
           await _callsRef.doc(callId).update({
             'status': statusMissed,
@@ -234,7 +234,6 @@ class CallService {
         'endedBy': _myUid,
       };
 
-      // ✅ Duration সেভ — caller/receiver দুইজনেই দিতে পারে
       if (durationSeconds != null && durationSeconds > 0) {
         data['duration'] = durationSeconds;
       }
@@ -247,7 +246,7 @@ class CallService {
   }
 
   // ============================================================
-  // MISSED CALL (manual — usually auto-handled)
+  // MISSED CALL
   // ============================================================
   static Future<void> missedCall(String callId) async {
     try {
@@ -277,7 +276,7 @@ class CallService {
   }
 
   // ============================================================
-  // GET CALL HISTORY (both caller + receiver)
+  // GET CALL HISTORY
   // ============================================================
   static Future<List<QueryDocumentSnapshot>> getCallHistory({
     int limit = 50,
@@ -306,7 +305,7 @@ class CallService {
   }
 
   // ============================================================
-  // CLEANUP STALE RINGING CALLS (call this from app startup)
+  // CLEANUP STALE RINGING CALLS
   // ============================================================
   static Future<int> cleanupStaleCalls() async {
     final myUid = _myUid;
@@ -349,9 +348,6 @@ class CallService {
   // ============================================================
   // STREAMS
   // ============================================================
-
-  /// ✅ Incoming call stream — requires composite index:
-  ///    receiverId ASC, status ASC, createdAt DESC
   static Stream<QuerySnapshot> incomingCallStream() {
     final myUid = _myUid;
     if (myUid == null) return const Stream.empty();
@@ -364,7 +360,6 @@ class CallService {
         .snapshots();
   }
 
-  /// ✅ Listen to a specific call's status changes
   static Stream<DocumentSnapshot> callStream(String callId) {
     return _callsRef.doc(callId).snapshots();
   }

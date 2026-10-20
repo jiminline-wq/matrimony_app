@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 
 import '../theme/colors.dart';
 import 'user_profile_view_screen.dart';
@@ -22,15 +21,12 @@ class WhoViewedMeScreen extends StatefulWidget {
 class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
   List<Map<String, dynamic>> viewers = [];
   bool isLoading = true;
-
-  // ✅ আনলক স্ট্যাটাস
   bool _isUnlocked = false;
   bool _isUnlocking = false;
 
   @override
   void initState() {
     super.initState();
-    // ✅ পেজে ঢোকার সাথে সাথেই অ্যাড লোড করা শুরু করি
     RewardedAdManager.loadAd();
     _checkUnlockStatusAndLoad();
   }
@@ -58,7 +54,6 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
         await loadViewers();
       } else {
         setState(() => isLoading = false);
-        // লক থাকলেও ভিউয়ার সংখ্যা দেখানোর জন্য ডেটা আনি
         final snap = await FirebaseFirestore.instance
             .collection('profileViews')
             .doc(me.uid)
@@ -66,6 +61,13 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
             .get();
         setState(() {
           viewers = List.generate(snap.docs.length, (i) => {'dummy': true});
+        });
+
+        // ✅ পেজে ঢোকার সাথে সাথেই অটোমেটিক অ্যাড শো করবে
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!_isUnlocked && !_isUnlocking) {
+            _unlockWithAd();
+          }
         });
       }
     } catch (e) {
@@ -85,7 +87,6 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
           .orderBy('viewedAt', descending: true)
           .limit(100)
           .get();
-
       final List<Map<String, dynamic>> loaded = [];
 
       for (final doc in snapshot.docs) {
@@ -122,9 +123,7 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
     setState(() => _isUnlocking = true);
 
     try {
-      final success = await RewardedAdManager.showAd(
-        onUserEarnedReward: () {},
-      );
+      final success = await RewardedAdManager.showAd(onUserEarnedReward: () {});
 
       if (success) {
         final me = FirebaseAuth.instance.currentUser;
@@ -154,30 +153,18 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
           }
         }
       } else {
-        // ✅ যদি অ্যাড লোড না হয় বা ইউজার পুরোটা না দেখে বন্ধ করে দেয়
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(widget.isBangla
-                  ? 'বিজ্ঞাপনটি সম্পূর্ণ দেখতে হবে। ইন্টারনেট চেক করে আবার চেষ্টা করুন।'
-                  : 'You must watch the full ad. Check internet and try again.'),
-              backgroundColor: Colors.redAccent,
-            ),
+                content: Text(widget.isBangla
+                    ? 'বিজ্ঞাপনটি সম্পূর্ণ দেখতে হবে। আবার চেষ্টা করুন।'
+                    : 'You must watch the full ad. Try again.'),
+                backgroundColor: Colors.redAccent),
           );
         }
       }
     } catch (e) {
       debugPrint('❌ Unlock failed: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.isBangla
-                ? 'কিছু ভুল হয়েছে। আবার চেষ্টা করুন।'
-                : 'Something went wrong. Try again.'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
     } finally {
       if (mounted) setState(() => _isUnlocking = false);
     }
@@ -193,17 +180,15 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
         backgroundColor: warmWhite,
         elevation: 0,
         centerTitle: true,
-        title: Text(
-          bn ? 'আমার প্রোফাইল দেখেছে' : 'Profile Viewers',
-          style:
-              const TextStyle(color: deepMaroon, fontWeight: FontWeight.bold),
-        ),
+        title: Text(bn ? 'আমার প্রোফাইল দেখেছে' : 'Profile Viewers',
+            style: const TextStyle(
+                color: deepMaroon, fontWeight: FontWeight.bold)),
         iconTheme: const IconThemeData(color: deepMaroon),
       ),
       body: Column(
         children: [
           Expanded(child: _buildBody(bn)),
-          if (_isUnlocked) // ✅ আনলকড হলে অ্যাড দেখাবে
+          if (_isUnlocked)
             const BannerAdWidget(placementId: AdConfig.placementWhoViewed),
         ],
       ),
@@ -211,9 +196,20 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
   }
 
   Widget _buildBody(bool bn) {
-    if (isLoading) {
-      return const Center(
-          child: CircularProgressIndicator(color: primaryMaroon));
+    if (isLoading || _isUnlocking) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(color: primaryMaroon),
+            if (_isUnlocking) ...[
+              const SizedBox(height: 16),
+              Text(bn ? 'বিজ্ঞাপন লোড হচ্ছে...' : 'Loading ad...',
+                  style: const TextStyle(color: secondaryText)),
+            ]
+          ],
+        ),
+      );
     }
 
     if (viewers.isEmpty) {
@@ -227,17 +223,15 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
                   size: 60, color: primaryMaroon),
               const SizedBox(height: 24),
               Text(
-                bn ? 'এখনো কেউ আপনার profile দেখেনি' : 'No profile views yet',
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+                  bn ? 'এখনো কেউ আপনার profile দেখেনি' : 'No profile views yet',
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
             ],
           ),
         ),
       );
     }
 
-    // ✅ লকড স্ক্রিন
     if (!_isUnlocked) {
       return Center(
         child: Padding(
@@ -264,43 +258,21 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
                     fontWeight: FontWeight.bold,
                     color: deepMaroon),
               ),
-              const SizedBox(height: 10),
-              Text(
-                bn
-                    ? 'কে কে দেখেছেন তা জানতে একটি ছোট বিজ্ঞাপন দেখুন।'
-                    : 'Watch a short ad to see who viewed you.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 14, color: secondaryText, height: 1.5),
-              ),
               const SizedBox(height: 30),
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton.icon(
-                  onPressed: _isUnlocking ? null : _unlockWithAd,
-                  icon: _isUnlocking
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.play_circle_fill),
-                  label: Text(
-                    _isUnlocking
-                        ? (bn ? 'অ্যাড চলছে...' : 'Ad playing...')
-                        : (bn
-                            ? '🎬 অ্যাড দেখে আনলক করুন'
-                            : '🎬 Watch Ad to Unlock'),
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  onPressed: _unlockWithAd,
+                  icon: const Icon(Icons.play_circle_fill),
+                  label: Text(bn ? '🎬 আবার অ্যাড দেখুন' : '🎬 Watch Ad Again',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryMaroon,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                  ),
+                      backgroundColor: primaryMaroon,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14))),
                 ),
               ),
             ],
@@ -309,7 +281,6 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
       );
     }
 
-    // ✅ আনলকড লিস্ট
     return RefreshIndicator(
       onRefresh: loadViewers,
       color: primaryMaroon,
@@ -319,7 +290,6 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
         itemBuilder: (context, index) {
           final item = viewers[index];
           final profile = item['profile'] as UserProfile;
-          final viewedAt = item['viewedAt'];
 
           return GestureDetector(
             onTap: () => Navigator.push(
@@ -331,10 +301,9 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.grey.shade200)),
               child: Row(
                 children: [
                   Container(

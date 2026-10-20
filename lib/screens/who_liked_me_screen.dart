@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -23,7 +22,6 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
   Set<String> myLikedUids = {};
   bool isLoading = true;
 
-  // ✅ আনলক স্ট্যাটাস
   bool _isUnlocked = false;
   bool _isUnlocking = false;
   Timestamp? _unlockedUntil;
@@ -31,12 +29,10 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
   @override
   void initState() {
     super.initState();
-    // ✅ পেজে ঢোকার সাথে সাথেই অ্যাড লোড করা শুরু করি
     RewardedAdManager.loadAd();
     _checkUnlockStatusAndLoad();
   }
 
-  // ✅ চেক করা ইউজার অ্যাড দেখে আগে আনলক করেছে কি না
   Future<void> _checkUnlockStatusAndLoad() async {
     final me = FirebaseAuth.instance.currentUser;
     if (me == null) return;
@@ -63,9 +59,15 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
         await loadLikers();
       } else {
         setState(() => isLoading = false);
-        // লক থাকলেও কারেন্ট লাইকার সংখ্যা দেখানোর জন্য ডেটা আনি
         final rawLikers = await LikeService.getWhoLikedMe(me.uid);
         setState(() => likers = rawLikers);
+
+        // ✅ পেজে ঢোকার সাথে সাথেই অটোমেটিক অ্যাড শো করবে
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!_isUnlocked && !_isUnlocking) {
+            _unlockWithAd();
+          }
+        });
       }
     } catch (e) {
       debugPrint('❌ Check unlock error: $e');
@@ -116,13 +118,11 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
     }
   }
 
-  // ✅ রিওয়ার্ডেড অ্যাড দেখে আনলক করা
   Future<void> _unlockWithAd() async {
     if (_isUnlocking) return;
     setState(() => _isUnlocking = true);
 
     try {
-      // অ্যাড শো করার চেষ্টা করি
       final success = await RewardedAdManager.showAd(
         onUserEarnedReward: () {},
       );
@@ -156,13 +156,12 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
           }
         }
       } else {
-        // ✅ যদি অ্যাড লোড না হয় বা ইউজার অ্যাড পুরোটা না দেখে বন্ধ করে দেয়
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(widget.isBangla
-                  ? 'বিজ্ঞাপনটি সম্পূর্ণ দেখতে হবে। ইন্টারনেট চেক করে আবার চেষ্টা করুন।'
-                  : 'You must watch the full ad. Check internet and try again.'),
+                  ? 'বিজ্ঞাপনটি সম্পূর্ণ দেখতে হবে। আবার চেষ্টা করুন।'
+                  : 'You must watch the full ad. Try again.'),
               backgroundColor: Colors.redAccent,
             ),
           );
@@ -170,16 +169,6 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
       }
     } catch (e) {
       debugPrint('❌ Unlock failed: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.isBangla
-                ? 'কিছু ভুল হয়েছে। আবার চেষ্টা করুন।'
-                : 'Something went wrong. Try again.'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
     } finally {
       if (mounted) setState(() => _isUnlocking = false);
     }
@@ -207,9 +196,20 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
   }
 
   Widget _buildBody(bool bn) {
-    if (isLoading) {
-      return const Center(
-          child: CircularProgressIndicator(color: primaryMaroon));
+    if (isLoading || _isUnlocking) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(color: primaryMaroon),
+            if (_isUnlocking) ...[
+              const SizedBox(height: 16),
+              Text(bn ? 'বিজ্ঞাপন লোড হচ্ছে...' : 'Loading ad...',
+                  style: const TextStyle(color: secondaryText)),
+            ]
+          ],
+        ),
+      );
     }
 
     if (likers.isEmpty) {
@@ -233,7 +233,6 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
       );
     }
 
-    // ✅ লকড স্ক্রিন
     if (!_isUnlocked) {
       return Center(
         child: Padding(
@@ -260,34 +259,15 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
                     fontWeight: FontWeight.bold,
                     color: deepMaroon),
               ),
-              const SizedBox(height: 10),
-              Text(
-                bn
-                    ? 'কে কে লাইক করেছে তা দেখতে একটি ছোট বিজ্ঞাপন দেখুন।'
-                    : 'Watch a short ad to see who liked you.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 14, color: secondaryText, height: 1.5),
-              ),
               const SizedBox(height: 30),
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton.icon(
-                  onPressed: _isUnlocking ? null : _unlockWithAd,
-                  icon: _isUnlocking
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.play_circle_fill),
+                  onPressed: _unlockWithAd,
+                  icon: const Icon(Icons.play_circle_fill),
                   label: Text(
-                    _isUnlocking
-                        ? (bn ? 'অ্যাড চলছে...' : 'Ad playing...')
-                        : (bn
-                            ? '🎬 অ্যাড দেখে আনলক করুন'
-                            : '🎬 Watch Ad to Unlock'),
+                    bn ? '🎬 আবার অ্যাড দেখুন' : '🎬 Watch Ad Again',
                     style: const TextStyle(
                         fontSize: 16, fontWeight: FontWeight.bold),
                   ),
@@ -305,7 +285,6 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
       );
     }
 
-    // ✅ আনলকড লিস্ট
     return RefreshIndicator(
       onRefresh: loadLikers,
       color: primaryMaroon,
@@ -417,9 +396,7 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
                     if (!isMutual)
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () async {
-                            // আপনার আগের _likeBack ফাংশন এখানে কল হবে
-                          },
+                          onPressed: () async {},
                           icon: const Icon(Icons.favorite, size: 16),
                           label: Text(bn ? 'Like Back' : 'Like Back'),
                         ),

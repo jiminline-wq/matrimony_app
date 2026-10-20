@@ -10,19 +10,7 @@ import '../theme/colors.dart';
 import '../services/agora_service.dart';
 import '../services/call_service.dart';
 import '../services/ring_service.dart';
-import '../services/call_history_service.dart';
-import '../services/chat_service.dart'; // ✅ নতুন ইমপোর্ট
-
-// ============================================================
-// CALL SCREEN — Agora based Voice + Video
-//
-// ✅ Samsung audio fix (speaker set in onJoined callback)
-// ✅ Duration tracking + Firestore save
-// ✅ cancelCall for caller-hungup-before-answer
-// ✅ Ring timeout for incoming (30s)
-// ✅ Guard against duplicate joins
-// ✅ Timer.periodic for duration counter (no leak)
-// ============================================================
+import '../services/chat_service.dart';
 
 class CallScreen extends StatefulWidget {
   final bool isBangla;
@@ -62,26 +50,18 @@ class _CallScreenState extends State<CallScreen> {
   String? _errorMessage;
   int _callDuration = 0;
 
-  // Incoming ringing state
   bool _isIncomingRinging = false;
   String? _callId;
   StreamSubscription<DocumentSnapshot>? _callListener;
   bool _callEnded = false;
 
-  // ✅ Duplicate join/leave প্রতিরোধ
   bool _isStartingJoin = false;
   bool _hasJoined = false;
 
-  // ✅ Ring timeout (incoming side)
   Timer? _ringTimeout;
-
-  // ✅ Duration counter
   Timer? _durationTimer;
-
-  // ✅ Call history duration tracking
   DateTime? _callStartTime;
 
-  // ✅ Ring timeout duration
   static const Duration _ringDuration = Duration(seconds: 30);
 
   @override
@@ -96,11 +76,8 @@ class _CallScreenState extends State<CallScreen> {
     if (widget.isIncoming) {
       debugPrint('📞 Incoming call — waiting for accept');
       _listenToCallStatus();
-
-      // ✅ Ring + vibrate শুরু
       RingService.start();
 
-      // ✅ 30 সেকেন্ড পর auto-stop → missed mark
       _ringTimeout = Timer(_ringDuration, () async {
         if (mounted && _isIncomingRinging && !_callEnded) {
           debugPrint('⏰ Ring timeout — marking as missed');
@@ -115,28 +92,18 @@ class _CallScreenState extends State<CallScreen> {
         }
       });
     } else {
-      // ✅ NEW — Outgoing call: start ringback
-      // (will stop automatically when callee accepts/rejects)
-      // Ringback starts in _startCall() after permissions succeed
       _startCall();
       _listenToCallStatus();
     }
   }
 
-  // ============================================================
-  // AGORA CALLBACKS
-  // ============================================================
   void _registerCallbacks() {
     AgoraService.onJoined = (channel) {
       if (!mounted) return;
       debugPrint('🎯 Callback: joined $channel');
       _hasJoined = true;
-
-      // ✅ Duration tracking শুরু
       _callStartTime = DateTime.now();
 
-      // ✅ Samsung audio fix — fire-and-forget (await করব না)
-      // setEnableSpeakerphone join সম্পূর্ণ হওয়ার পরে safe
       AgoraService.setAudioRoute(widget.isVideoCall);
 
       setState(() {
@@ -164,9 +131,6 @@ class _CallScreenState extends State<CallScreen> {
     };
   }
 
-  // ============================================================
-  // LISTEN TO FIRESTORE CALL STATUS
-  // ============================================================
   void _listenToCallStatus() {
     if (_callId == null) return;
 
@@ -179,15 +143,11 @@ class _CallScreenState extends State<CallScreen> {
       debugPrint('📞 Call status update: $status');
 
       switch (status) {
-        // ------------------------------------------------------
-
         case CallService.statusAccepted:
           RingService.stop();
           RingService.stopRingback();
-          RingService.stopRingback(); // ✅ NEW
           _ringTimeout?.cancel();
 
-          // Guard: একবারই join করবে
           if (!_hasJoined && !_isStartingJoin) {
             _isStartingJoin = true;
             setState(() => _isIncomingRinging = false);
@@ -195,70 +155,40 @@ class _CallScreenState extends State<CallScreen> {
           }
           break;
 
-        // ------------------------------------------------------
         case CallService.statusRejected:
         case CallService.statusCancelled:
           RingService.stop();
           RingService.stopRingback();
           _ringTimeout?.cancel();
 
-          final myUid = FirebaseAuth.instance.currentUser?.uid;
-          if (myUid != null) {
-            final callerId = data['callerId'] ?? '';
-            final receiverId = data['receiverId'] ?? '';
-            await ChatService.logCallMessage(
-              senderId: callerId,
-              receiverId: receiverId,
-              isVideo: widget.isVideoCall,
-              status: 'rejected',
-            );
-          }
+          await _logCallMessageHelper(data, 'rejected');
 
-          // Caller side — receiver declined
           if (!widget.isIncoming && mounted && !_callEnded) {
             _callEnded = true;
             _showAndPop(widget.isBangla ? 'কল বাতিল হয়েছে' : 'Call declined');
-          }
-          // Receiver side — caller hung up before accept
-          else if (widget.isIncoming && mounted && !_callEnded) {
+          } else if (widget.isIncoming && mounted && !_callEnded) {
             _callEnded = true;
             _showAndPop(widget.isBangla ? 'কল বাতিল হয়েছে' : 'Call cancelled');
           }
           break;
 
-        // ------------------------------------------------------
         case CallService.statusEnded:
         case CallService.statusMissed:
           RingService.stop();
-          RingService.stopRingback(); // ✅ NEW
+          RingService.stopRingback();
           _ringTimeout?.cancel();
 
           if (mounted && !_callEnded) {
             _callEnded = true;
 
-            // ✅ কল লগ সেভ করুন
-            final myUid = FirebaseAuth.instance.currentUser?.uid;
-            if (myUid != null && _callId != null) {
-              if (status == CallService.statusMissed) {
-                await ChatService.logCallMessage(
-                  senderId: widget.isCaller ? myUid : data['callerId'] ?? '',
-                  receiverId:
-                      widget.isCaller ? data['receiverId'] ?? '' : myUid,
-                  isVideo: widget.isVideoCall,
-                  status: 'missed',
-                );
-              } else if (status == CallService.statusEnded && _isJoined) {
-                final duration =
-                    DateTime.now().difference(_callStartTime!).inSeconds;
-                await ChatService.logCallMessage(
-                  senderId: widget.isCaller ? myUid : data['callerId'] ?? '',
-                  receiverId:
-                      widget.isCaller ? data['receiverId'] ?? '' : myUid,
-                  isVideo: widget.isVideoCall,
-                  status: 'ended',
-                  duration: duration,
-                );
-              }
+            if (status == CallService.statusMissed) {
+              await _logCallMessageHelper(data, 'missed');
+            } else if (status == CallService.statusEnded &&
+                _isJoined &&
+                _callStartTime != null) {
+              final duration =
+                  DateTime.now().difference(_callStartTime!).inSeconds;
+              await _logCallMessageHelper(data, 'ended', duration: duration);
             }
 
             await AgoraService.leaveChannel();
@@ -269,9 +199,24 @@ class _CallScreenState extends State<CallScreen> {
     });
   }
 
-  // ============================================================
-  // SHOW MESSAGE + POP
-  // ============================================================
+  // ✅ Helper for logging chat messages without code repetition
+  Future<void> _logCallMessageHelper(Map<String, dynamic> data, String status,
+      {int duration = 0}) async {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    if (myUid == null) return;
+
+    final callerId = data['callerId'] ?? '';
+    final receiverId = data['receiverId'] ?? '';
+
+    await ChatService.logCallMessage(
+      senderId: widget.isCaller ? myUid : callerId,
+      receiverId: widget.isCaller ? receiverId : myUid,
+      isVideo: widget.isVideoCall,
+      status: status,
+      duration: duration,
+    );
+  }
+
   void _showAndPop(String msg) {
     AgoraService.leaveChannel();
     if (!mounted) return;
@@ -288,18 +233,12 @@ class _CallScreenState extends State<CallScreen> {
     });
   }
 
-  // ============================================================
-  // START CALL (join Agora channel)
-  // ============================================================
   Future<void> _startCall() async {
-    // Guard: already joined হলে return
     if (_hasJoined) {
-      debugPrint('⚠️ Already joined — skip');
       _isStartingJoin = false;
       return;
     }
 
-    // 1. Permissions
     final permissionsGranted = await _requestPermissions();
     if (!mounted) return;
 
@@ -314,11 +253,8 @@ class _CallScreenState extends State<CallScreen> {
       return;
     }
 
-    // 2. Get token
-    final tokenData = await AgoraService.getToken(
-      channelName: widget.channelName,
-    );
-
+    final tokenData =
+        await AgoraService.getToken(channelName: widget.channelName);
     if (!mounted) return;
 
     if (tokenData == null) {
@@ -335,25 +271,18 @@ class _CallScreenState extends State<CallScreen> {
     final uid = tokenData['uid'] as int;
     final appId = tokenData['appId'] as String;
 
-    // 3. Initialize engine
     await AgoraService.initialize(appId: appId);
-
     if (!mounted) return;
 
-    // Guard আবার চেক
     if (_hasJoined) {
       _isStartingJoin = false;
       return;
     }
 
-    // 4. Join channel
-    // 4. ✅ NEW — Start ringback for OUTGOING call
-    // (only caller side, and only if not already joined)
     if (!widget.isIncoming && !_hasJoined) {
       await RingService.startRingback();
     }
 
-    // 5. Join channel
     final joined = await AgoraService.joinChannel(
       channelName: widget.channelName,
       token: token,
@@ -374,9 +303,6 @@ class _CallScreenState extends State<CallScreen> {
     _isStartingJoin = false;
   }
 
-  // ============================================================
-  // PERMISSIONS
-  // ============================================================
   Future<bool> _requestPermissions() async {
     final camera = await Permission.camera.request();
     final mic = await Permission.microphone.request();
@@ -387,9 +313,6 @@ class _CallScreenState extends State<CallScreen> {
     return camera.isGranted && mic.isGranted;
   }
 
-  // ============================================================
-  // TIMER (duration counter)
-  // ============================================================
   void _startTimer() {
     _durationTimer?.cancel();
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -405,9 +328,6 @@ class _CallScreenState extends State<CallScreen> {
     return '$m:$s';
   }
 
-  // ============================================================
-  // END CALL (with duration or cancel depending on state)
-  // ============================================================
   Future<void> _endCall() async {
     RingService.stop();
     RingService.stopRingback();
@@ -418,11 +338,9 @@ class _CallScreenState extends State<CallScreen> {
       final myUid = FirebaseAuth.instance.currentUser?.uid;
 
       if (_isJoined && _callStartTime != null) {
-        // ✅ Call connected ছিলো → ended with duration
         final duration = DateTime.now().difference(_callStartTime!).inSeconds;
         await CallService.endCall(_callId!, durationSeconds: duration);
 
-        // ✅ কল লগ সেভ করুন
         if (myUid != null) {
           final callDoc = await FirebaseFirestore.instance
               .collection('calls')
@@ -438,7 +356,6 @@ class _CallScreenState extends State<CallScreen> {
           );
         }
       } else if (widget.isCaller) {
-        // ✅ Caller receiver ধরার আগেই কেটে দিয়েছে → cancelled
         await CallService.cancelCall(_callId!);
         if (myUid != null) {
           final callDoc = await FirebaseFirestore.instance
@@ -454,7 +371,6 @@ class _CallScreenState extends State<CallScreen> {
           );
         }
       } else {
-        // ✅ Receiver join হওয়ার আগেই (edge case) → rejected
         await CallService.rejectCall(_callId!);
         if (myUid != null) {
           final callDoc = await FirebaseFirestore.instance
@@ -477,21 +393,14 @@ class _CallScreenState extends State<CallScreen> {
     Navigator.pop(context);
   }
 
-  // ============================================================
-  // ACCEPT INCOMING
-  // ============================================================
   Future<void> _acceptCall() async {
     RingService.stop();
     _ringTimeout?.cancel();
 
     if (_callId == null) return;
     await CallService.acceptCall(_callId!);
-    // বাকিটা Firestore listener handle করবে (statusAccepted → _startCall)
   }
 
-  // ============================================================
-  // REJECT INCOMING
-  // ============================================================
   Future<void> _rejectCall() async {
     RingService.stop();
     RingService.stopRingback();
@@ -505,9 +414,6 @@ class _CallScreenState extends State<CallScreen> {
     Navigator.pop(context);
   }
 
-  // ============================================================
-  // TOGGLES
-  // ============================================================
   Future<void> _toggleMute() async {
     setState(() => _isMuted = !_isMuted);
     await AgoraService.muteAudio(_isMuted);
@@ -528,24 +434,18 @@ class _CallScreenState extends State<CallScreen> {
     await AgoraService.switchCamera();
   }
 
-  // ============================================================
-  // DISPOSE
-  // ============================================================
   @override
   void dispose() {
     RingService.stop();
+    RingService.stopRingback();
     _ringTimeout?.cancel();
-    _durationTimer?.cancel(); // ✅ NEW
-
+    _durationTimer?.cancel();
     _callListener?.cancel();
     AgoraService.clearCallbacks();
     AgoraService.leaveChannel();
     super.dispose();
   }
 
-  // ============================================================
-  // BUILD
-  // ============================================================
   @override
   Widget build(BuildContext context) {
     if (_isIncomingRinging) {
@@ -701,15 +601,12 @@ class _CallScreenState extends State<CallScreen> {
                       controller: VideoViewController.remote(
                         rtcEngine: AgoraService.engine!,
                         canvas: VideoCanvas(uid: _remoteUid),
-                        connection: RtcConnection(
-                          channelId: widget.channelName,
-                        ),
+                        connection:
+                            RtcConnection(channelId: widget.channelName),
                       ),
                     )
                   : _buildWaitingScreen(),
             ),
-
-            // Local preview
             if (!_isVideoOff && _isJoined)
               Positioned(
                 top: 16,
@@ -738,8 +635,6 @@ class _CallScreenState extends State<CallScreen> {
                   ),
                 ),
               ),
-
-            // Top info
             Positioned(
               top: 16,
               left: 20,
@@ -776,8 +671,6 @@ class _CallScreenState extends State<CallScreen> {
                 ],
               ),
             ),
-
-            // Actions
             Positioned(
               bottom: 30,
               left: 0,
@@ -879,9 +772,6 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
-  // ============================================================
-  // WAITING SCREEN
-  // ============================================================
   Widget _buildWaitingScreen() {
     return Container(
       color: Colors.black87,
@@ -950,9 +840,6 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
-  // ============================================================
-  // VIDEO ACTIONS
-  // ============================================================
   Widget _buildVideoCallActions() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -991,9 +878,6 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
-  // ============================================================
-  // VOICE ACTIONS
-  // ============================================================
   Widget _buildVoiceCallActions() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -1099,9 +983,8 @@ class _CallScreenState extends State<CallScreen> {
                       : Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: (isEndCall ? Colors.red : primaryMaroon).withValues(
-                    alpha: 0.3,
-                  ),
+                  color: (isEndCall ? Colors.red : primaryMaroon)
+                      .withValues(alpha: 0.3),
                   blurRadius: 14,
                   offset: const Offset(0, 4),
                 ),
