@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
 import '../models/filter_options.dart';
@@ -110,7 +111,6 @@ class _FilterScreenState extends State<FilterScreen> {
     'Other',
   ];
 
-  // ✅ NEW
   final List<String> genders = [
     'Male',
     'Female',
@@ -179,7 +179,7 @@ class _FilterScreenState extends State<FilterScreen> {
     _education = widget.initialFilter.education;
     _profession = widget.initialFilter.profession;
     _maritalStatus = widget.initialFilter.maritalStatus;
-    _gender = widget.initialFilter.gender; // ✅ NEW
+    _gender = widget.initialFilter.gender;
   }
 
   // ============================================================
@@ -194,7 +194,7 @@ class _FilterScreenState extends State<FilterScreen> {
       education: _education,
       profession: _profession,
       maritalStatus: _maritalStatus,
-      gender: _gender, // ✅ NEW
+      gender: _gender,
     );
 
     Navigator.pop(context, filter);
@@ -208,7 +208,7 @@ class _FilterScreenState extends State<FilterScreen> {
       _education = null;
       _profession = null;
       _maritalStatus = null;
-      _gender = null; // ✅ NEW
+      _gender = null;
     });
   }
 
@@ -247,192 +247,155 @@ class _FilterScreenState extends State<FilterScreen> {
           ),
         ],
       ),
-      body: ListView(
-        // ✅ নিচে padding বাড়ানো হলো যাতে অ্যাড ও বাটনের জন্য জায়গা থাকে
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 150),
-        children: [
-          // ==================================================
-          // AGE RANGE
-          // ==================================================
-          _buildSectionTitle(
-            bn ? 'বয়স' : 'Age Range',
-            Icons.cake_outlined,
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth > 800;
+
+          // ✅ ফিল্টার লিস্ট
+          Widget filterList = ListView(
+            // ✅ নিচে padding বাড়ানো হলো যাতে অ্যাড ও বাটনের জন্য জায়গা থাকে
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 150),
+            children: [
+              _buildSectionTitle(bn ? 'বয়স' : 'Age Range', Icons.cake_outlined),
+              const SizedBox(height: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
                   children: [
-                    Text(
-                      '${_ageRange.start.round()}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: primaryMaroon,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('${_ageRange.start.round()}',
+                            style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: primaryMaroon)),
+                        Text('${_ageRange.end.round()}',
+                            style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: primaryMaroon)),
+                      ],
+                    ),
+                    RangeSlider(
+                      values: _ageRange,
+                      min: 18,
+                      max: 60,
+                      divisions: 42,
+                      activeColor: primaryMaroon,
+                      inactiveColor: lightMaroon,
+                      labels: RangeLabels('${_ageRange.start.round()}',
+                          '${_ageRange.end.round()}'),
+                      onChanged: (values) => setState(() => _ageRange = values),
                     ),
                     Text(
-                      '${_ageRange.end.round()}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: primaryMaroon,
-                      ),
+                      bn
+                          ? '${_ageRange.start.round()} - ${_ageRange.end.round()} বছর'
+                          : '${_ageRange.start.round()} - ${_ageRange.end.round()} years',
+                      style:
+                          const TextStyle(fontSize: 13, color: secondaryText),
                     ),
                   ],
                 ),
-                RangeSlider(
-                  values: _ageRange,
-                  min: 18,
-                  max: 60,
-                  divisions: 42,
-                  activeColor: primaryMaroon,
-                  inactiveColor: lightMaroon,
-                  labels: RangeLabels(
-                    '${_ageRange.start.round()}',
-                    '${_ageRange.end.round()}',
+              ),
+              const SizedBox(height: 20),
+              _buildSectionTitle(bn ? 'লিঙ্গ' : 'Gender', Icons.wc_outlined),
+              const SizedBox(height: 8),
+              _buildDropdown(
+                value: _gender,
+                hint: bn ? 'যেকোনো লিঙ্গ' : 'Any gender',
+                items: genders,
+                onChanged: (value) => setState(() => _gender = value),
+              ),
+              const SizedBox(height: 20),
+              _buildSectionTitle(
+                  bn ? 'জেলা' : 'District', Icons.location_on_outlined),
+              const SizedBox(height: 8),
+              _buildDropdown(
+                value: _district,
+                hint: bn ? 'সব জেলা' : 'Any district',
+                items: districts,
+                onChanged: (value) => setState(() => _district = value),
+              ),
+              const SizedBox(height: 20),
+              _buildSectionTitle(
+                  bn ? 'ধর্ম' : 'Religion', Icons.auto_awesome_outlined),
+              const SizedBox(height: 8),
+              _buildDropdown(
+                value: _religion,
+                hint: bn ? 'সব ধর্ম' : 'Any religion',
+                items: religions,
+                onChanged: (value) => setState(() => _religion = value),
+              ),
+              const SizedBox(height: 20),
+              _buildSectionTitle(
+                  bn ? 'শিক্ষা' : 'Education', Icons.school_outlined),
+              const SizedBox(height: 8),
+              _buildDropdown(
+                value: _education,
+                hint: bn ? 'যেকোনো শিক্ষা' : 'Any education',
+                items: educations,
+                onChanged: (value) => setState(() => _education = value),
+              ),
+              const SizedBox(height: 20),
+              _buildSectionTitle(
+                  bn ? 'পেশা' : 'Profession', Icons.work_outline),
+              const SizedBox(height: 8),
+              _buildDropdown(
+                value: _profession,
+                hint: bn ? 'যেকোনো পেশা' : 'Any profession',
+                items: professions,
+                onChanged: (value) => setState(() => _profession = value),
+              ),
+              const SizedBox(height: 20),
+              _buildSectionTitle(bn ? 'বৈবাহিক অবস্থা' : 'Marital Status',
+                  Icons.favorite_border),
+              const SizedBox(height: 8),
+              _buildDropdown(
+                value: _maritalStatus,
+                hint: bn ? 'যেকোনো' : 'Any',
+                items: maritalStatuses,
+                onChanged: (value) => setState(() => _maritalStatus = value),
+              ),
+            ],
+          );
+
+          // ✅ ওয়েবে সুন্দর কার্ডের ভেতরে দেখানোর জন্য
+          if (isDesktop) {
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 700),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 30),
+                  decoration: BoxDecoration(
+                    color: warmWhite,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
-                  onChanged: (values) {
-                    setState(() {
-                      _ageRange = values;
-                    });
-                  },
-                ),
-                Text(
-                  bn
-                      ? '${_ageRange.start.round()} - ${_ageRange.end.round()} বছর'
-                      : '${_ageRange.start.round()} - ${_ageRange.end.round()} years',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: secondaryText,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: filterList,
                   ),
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          }
 
-          const SizedBox(height: 20),
-
-          // ==================================================
-          // GENDER  ✅ NEW
-          // ==================================================
-          _buildSectionTitle(
-            bn ? 'লিঙ্গ' : 'Gender',
-            Icons.wc_outlined,
-          ),
-          const SizedBox(height: 8),
-          _buildDropdown(
-            value: _gender,
-            hint: bn ? 'যেকোনো লিঙ্গ' : 'Any gender',
-            items: genders,
-            onChanged: (value) {
-              setState(() => _gender = value);
-            },
-          ),
-
-          const SizedBox(height: 20),
-
-          // ==================================================
-          // DISTRICT
-          // ==================================================
-          _buildSectionTitle(
-            bn ? 'জেলা' : 'District',
-            Icons.location_on_outlined,
-          ),
-          const SizedBox(height: 8),
-          _buildDropdown(
-            value: _district,
-            hint: bn ? 'সব জেলা' : 'Any district',
-            items: districts,
-            onChanged: (value) {
-              setState(() => _district = value);
-            },
-          ),
-
-          const SizedBox(height: 20),
-
-          // ==================================================
-          // RELIGION
-          // ==================================================
-          _buildSectionTitle(
-            bn ? 'ধর্ম' : 'Religion',
-            Icons.auto_awesome_outlined,
-          ),
-          const SizedBox(height: 8),
-          _buildDropdown(
-            value: _religion,
-            hint: bn ? 'সব ধর্ম' : 'Any religion',
-            items: religions,
-            onChanged: (value) {
-              setState(() => _religion = value);
-            },
-          ),
-
-          const SizedBox(height: 20),
-
-          // ==================================================
-          // EDUCATION
-          // ==================================================
-          _buildSectionTitle(
-            bn ? 'শিক্ষা' : 'Education',
-            Icons.school_outlined,
-          ),
-          const SizedBox(height: 8),
-          _buildDropdown(
-            value: _education,
-            hint: bn ? 'যেকোনো শিক্ষা' : 'Any education',
-            items: educations,
-            onChanged: (value) {
-              setState(() => _education = value);
-            },
-          ),
-
-          const SizedBox(height: 20),
-
-          // ==================================================
-          // PROFESSION
-          // ==================================================
-          _buildSectionTitle(
-            bn ? 'পেশা' : 'Profession',
-            Icons.work_outline,
-          ),
-          const SizedBox(height: 8),
-          _buildDropdown(
-            value: _profession,
-            hint: bn ? 'যেকোনো পেশা' : 'Any profession',
-            items: professions,
-            onChanged: (value) {
-              setState(() => _profession = value);
-            },
-          ),
-
-          const SizedBox(height: 20),
-
-          // ==================================================
-          // MARITAL STATUS
-          // ==================================================
-          _buildSectionTitle(
-            bn ? 'বৈবাহিক অবস্থা' : 'Marital Status',
-            Icons.favorite_border,
-          ),
-          const SizedBox(height: 8),
-          _buildDropdown(
-            value: _maritalStatus,
-            hint: bn ? 'যেকোনো' : 'Any',
-            items: maritalStatuses,
-            onChanged: (value) {
-              setState(() => _maritalStatus = value);
-            },
-          ),
-        ],
+          // মোবাইলে আগের মতোই ফুল স্ক্রিন
+          return filterList;
+        },
       ),
       // ✅ বাটন এবং অ্যাড একসাথে নিচে ফিক্সড করা হলো
       bottomSheet: Container(
@@ -481,11 +444,13 @@ class _FilterScreenState extends State<FilterScreen> {
                   ),
                 ),
               ),
-              // ✅ এখানে অ্যাডটি বসানো হলো
-              const SizedBox(height: 8),
-              const BannerAdWidget(
-                placementId: AdConfig.placementFilterApply,
-              ),
+              // ✅ AdMob শুধু মোবাইলে
+              if (!kIsWeb) ...[
+                const SizedBox(height: 8),
+                const BannerAdWidget(
+                  placementId: AdConfig.placementFilterApply,
+                ),
+              ],
             ],
           ),
         ),

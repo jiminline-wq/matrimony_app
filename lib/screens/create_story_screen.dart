@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../models/story.dart';
 import '../services/story_service.dart';
@@ -23,7 +24,8 @@ class CreateStoryScreen extends StatefulWidget {
 }
 
 class _CreateStoryScreenState extends State<CreateStoryScreen> {
-  File? _pickedFile;
+  // ✅ File এর বদলে XFile ব্যবহার করা হলো (যা ওয়েব ও মোবাইল উভয় জায়গায় কাজ করে)
+  XFile? _pickedFile;
   StoryMediaType? _pickedType;
   int _videoDuration = 15;
   bool _posting = false;
@@ -39,11 +41,11 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       );
       if (x == null) return;
       setState(() {
-        _pickedFile = File(x.path);
+        _pickedFile = x;
         _pickedType = StoryMediaType.image;
       });
     } catch (e) {
-      _snack('ছবি নিতে সমস্যা: $e');
+      _snack(widget.isBangla ? 'ছবি নিতে সমস্যা: $e' : 'Image pick error: $e');
     }
   }
 
@@ -51,37 +53,50 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
     try {
       final x = await _picker.pickVideo(
         source: source,
-        maxDuration: const Duration(seconds: 15), // ✅ picker-লেভেলে limit
+        maxDuration: const Duration(seconds: 15),
       );
       if (x == null) return;
 
-      final dur = await StoryService.getVideoDurationSeconds(File(x.path));
-      if (dur > StoryService.maxDurationSeconds) {
-        _snack(
-          widget.isBangla
-              ? 'ভিডিও $dur সেকেন্ড — সর্বোচ্চ ১৫ সেকেন্ড দরকার'
-              : 'Video $dur s — max 15 s allowed',
-        );
-        return;
+      // ✅ ওয়েবে StoryService.getVideoDurationSeconds কাজ করবে না, তাই চেক দেওয়া হলো
+      int dur = 15;
+      if (!kIsWeb) {
+        dur = await StoryService.getVideoDurationSeconds(File(x.path));
+        if (dur > StoryService.maxDurationSeconds) {
+          _snack(
+            widget.isBangla
+                ? 'ভিডিও $dur সেকেন্ড — সর্বোচ্চ ১৫ সেকেন্ড দরকার'
+                : 'Video $dur s — max 15 s allowed',
+          );
+          return;
+        }
       }
 
       setState(() {
-        _pickedFile = File(x.path);
+        _pickedFile = x;
         _pickedType = StoryMediaType.video;
         _videoDuration = dur;
       });
     } catch (e) {
-      _snack('ভিডিও নিতে সমস্যা: $e');
+      _snack(
+          widget.isBangla ? 'ভিডিও নিতে সমস্যা: $e' : 'Video pick error: $e');
     }
   }
 
   Future<void> _post() async {
     if (_pickedFile == null || _pickedType == null) return;
 
+    // ✅ ওয়েবে StoryService আপাতত সাপোর্ট করবে না (File ছাড়া)
+    if (kIsWeb) {
+      _snack(widget.isBangla
+          ? 'ওয়েবে স্টোরি আপলোড শীঘ্রই আসছে!'
+          : 'Web story upload is coming soon!');
+      return;
+    }
+
     setState(() => _posting = true);
     try {
       await StoryService.createStory(
-        file: _pickedFile!,
+        file: File(_pickedFile!.path), // মোবাইলে File এ কনভার্ট করে পাঠানো হলো
         type: _pickedType!,
         userName: widget.userName,
         userPhoto: widget.userPhoto,
@@ -92,7 +107,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      _snack('Post fail: $e');
+      _snack(widget.isBangla ? 'Post fail: $e' : 'Post fail: $e');
       setState(() => _posting = false);
     }
   }
@@ -106,7 +121,8 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   Widget build(BuildContext context) {
     final bn = widget.isBangla;
 
-    return Scaffold(
+    // ✅ মূল কন্টেন্ট
+    Widget mainContent = Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
@@ -138,6 +154,25 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
       ),
       body: _pickedFile == null ? _buildPicker(bn) : _buildPreview(bn),
     );
+
+    // ✅ ওয়েবে ফোন-সিমুলেটর লুক দেওয়া হলো
+    if (kIsWeb) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF1E1E1E), // ডার্ক গ্রে ব্যাকগ্রাউন্ড
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 450, maxHeight: 850),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: mainContent,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // মোবাইলে আগের মতোই ফুল স্ক্রিন
+    return mainContent;
   }
 
   Widget _buildPicker(bool bn) {
@@ -242,7 +277,9 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
         Expanded(
           child: Center(
             child: _pickedType == StoryMediaType.image
-                ? Image.file(_pickedFile!, fit: BoxFit.contain)
+                ? (kIsWeb
+                    ? Image.network(_pickedFile!.path, fit: BoxFit.contain)
+                    : Image.file(File(_pickedFile!.path), fit: BoxFit.contain))
                 : _videoPreview(),
           ),
         ),
@@ -282,14 +319,15 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
   }
 
   Widget _videoPreview() {
-    // Simple thumbnail — full playback viewer-এ হবে
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const Icon(Icons.videocam, color: Colors.white54, size: 64),
         const SizedBox(height: 12),
         Text(
-          'ভিডিও • $_videoDuration সেকেন্ড',
+          widget.isBangla
+              ? 'ভিডিও • $_videoDuration সেকেন্ড'
+              : 'Video • $_videoDuration sec',
           style: const TextStyle(color: Colors.white70),
         ),
       ],
