@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../theme/colors.dart';
 import 'registration_screen.dart';
 import 'login_screen.dart';
+import 'package:flutter/foundation.dart'; // kIsWeb এর জন্য
+import 'web_registration_screen.dart'; // আপনার নতুন ফাইলটি
 
 // ============================================================
 // LANGUAGE
@@ -179,9 +181,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                           builder: (context, child) {
                             final scale = 1 +
                                 math.sin(
-                                      animationController.value *
-                                          math.pi *
-                                          2,
+                                      animationController.value * math.pi * 2,
                                     ) *
                                     .025;
                             return Transform.scale(
@@ -295,12 +295,20 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                               ],
                             ),
                             child: ElevatedButton(
+                              // ✅ এখানে kIsWeb লজিক বসানো হলো
                               onPressed: () {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) =>
-                                        RegistrationScreen(isBangla: bn),
+                                    builder: (_) {
+                                      if (kIsWeb) {
+                                        // কম্পিউটারে (ওয়েবে) খুললে নতুন প্রিমিয়াম ডিজাইন দেখাবে
+                                        return const WebRegistrationScreen();
+                                      } else {
+                                        // মোবাইলে খুললে আগের মোবাইল ডিজাইন দেখাবে
+                                        return RegistrationScreen(isBangla: bn);
+                                      }
+                                    },
                                   ),
                                 );
                               },
@@ -350,7 +358,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                                 color: primaryMaroon.withValues(alpha: .5),
                                 width: 1.5,
                               ),
-                              backgroundColor: Colors.white.withValues(alpha: .50),
+                              backgroundColor:
+                                  Colors.white.withValues(alpha: .50),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(20),
                               ),
