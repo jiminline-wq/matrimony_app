@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -98,88 +99,108 @@ class _ChatListScreenState extends State<ChatListScreen>
           ],
         ),
       ),
-      // ✅ Column ব্যবহার করে নিচে ব্যানার অ্যাড বসানো হলো
-      body: Column(
-        children: [
-          Expanded(
-            child: _myUid == null
-                ? const Center(
-                    child: CircularProgressIndicator(color: primaryMaroon))
-                : StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('chats')
-                        .where('users', arrayContains: _myUid)
-                        .orderBy('lastMessageTime', descending: true)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child:
-                              CircularProgressIndicator(color: primaryMaroon),
-                        );
-                      }
+      // ✅ LayoutBuilder দিয়ে মোবাইল/ওয়েব আলাদা করা হলো
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth > 800;
 
-                      if (snapshot.hasError) {
-                        debugPrint('❌ Chats stream error: ${snapshot.error}');
-                        return Center(
-                          child: Text(
-                            bn ? 'লোড করা যায়নি' : 'Could not load',
-                            style: const TextStyle(color: secondaryText),
-                          ),
-                        );
-                      }
-                      final allChats = snapshot.data?.docs ?? [];
+          return Column(
+            children: [
+              Expanded(
+                child: _myUid == null
+                    ? const Center(
+                        child: CircularProgressIndicator(color: primaryMaroon))
+                    : StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('chats')
+                            .where('users', arrayContains: _myUid)
+                            .orderBy('lastMessageTime', descending: true)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                  color: primaryMaroon),
+                            );
+                          }
 
-                      // ✅ Active Chats (Archived নয়, Deleted নয়)
-                      final activeChats = allChats.where((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final isDeleted = data['deletedFor.$_myUid'] == true;
-                        final isArchived = data['archivedFor.$_myUid'] == true;
-                        return !isDeleted && !isArchived;
-                      }).toList();
+                          if (snapshot.hasError) {
+                            debugPrint(
+                                '❌ Chats stream error: ${snapshot.error}');
+                            return Center(
+                              child: Text(
+                                bn ? 'লোড করা যায়নি' : 'Could not load',
+                                style: const TextStyle(color: secondaryText),
+                              ),
+                            );
+                          }
+                          final allChats = snapshot.data?.docs ?? [];
 
-                      // ✅ Archived Chats (Archived, Deleted নয়)
-                      final archivedChats = allChats.where((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final isDeleted = data['deletedFor.$_myUid'] == true;
-                        final isArchived = data['archivedFor.$_myUid'] == true;
-                        return !isDeleted && isArchived;
-                      }).toList();
+                          // ✅ Active Chats (Archived নয়, Deleted নয়)
+                          final activeChats = allChats.where((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final isDeleted =
+                                data['deletedFor.$_myUid'] == true;
+                            final isArchived =
+                                data['archivedFor.$_myUid'] == true;
+                            return !isDeleted && !isArchived;
+                          }).toList();
 
-                      debugPrint('📋 [ChatList] total=${allChats.length}, '
-                          'active=${activeChats.length}, '
-                          'archived=${archivedChats.length}');
+                          // ✅ Archived Chats (Archived, Deleted নয়)
+                          final archivedChats = allChats.where((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final isDeleted =
+                                data['deletedFor.$_myUid'] == true;
+                            final isArchived =
+                                data['archivedFor.$_myUid'] == true;
+                            return !isDeleted && isArchived;
+                          }).toList();
 
-                      return TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _buildListFromDocs(activeChats, bn, false),
-                          _buildListFromDocs(archivedChats, bn, true),
-                        ],
-                      );
-                    },
-                  ),
-          ),
-          // ✅ Fixed Banner Ad
-          const BannerAdWidget(
-            placementId: AdConfig.placementChatList,
-          ),
-        ],
+                          debugPrint('📋 [ChatList] total=${allChats.length}, '
+                              'active=${activeChats.length}, '
+                              'archived=${archivedChats.length}');
+
+                          return TabBarView(
+                            controller: _tabController,
+                            children: [
+                              _buildListFromDocs(
+                                  activeChats, bn, false, isDesktop),
+                              _buildListFromDocs(
+                                  archivedChats, bn, true, isDesktop),
+                            ],
+                          );
+                        },
+                      ),
+              ),
+              // ✅ AdMob শুধু মোবাইলে
+              if (!kIsWeb)
+                const SafeArea(
+                  top: false,
+                  child:
+                      BannerAdWidget(placementId: AdConfig.placementChatList),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
 
   // ============================================================
-  // BUILD LIST — Filtered Docs থেকে List বানানো
+  // BUILD LIST — Responsive
   // ============================================================
   Widget _buildListFromDocs(
     List<QueryDocumentSnapshot> chats,
     bool bn,
     bool archived,
+    bool isDesktop,
   ) {
     if (chats.isEmpty) return _buildEmpty(bn, archived);
 
-    return ListView.separated(
+    final listWidget = ListView.separated(
+      shrinkWrap: isDesktop,
+      physics: isDesktop ? const NeverScrollableScrollPhysics() : null,
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: chats.length,
       separatorBuilder: (_, __) => Divider(
@@ -189,6 +210,38 @@ class _ChatListScreenState extends State<ChatListScreen>
       ),
       itemBuilder: (context, i) => _buildChatTile(chats[i], bn, archived),
     );
+
+    // ✅ ওয়েবে সুন্দর ড্যাশবোর্ড লুক
+    if (isDesktop) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 900), // ম্যাক্স উইডথ
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: listWidget,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // মোবাইল লিস্ট
+    return listWidget;
   }
 
   // ============================================================
@@ -375,9 +428,9 @@ class _ChatListScreenState extends State<ChatListScreen>
     );
   }
 
-// ============================================================
-// CHAT MENU (Long press)
-// ============================================================
+  // ============================================================
+  // CHAT MENU (Long press)
+  // ============================================================
   void _showChatMenu(
     String chatId,
     UserProfile otherUser,
