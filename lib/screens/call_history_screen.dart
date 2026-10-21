@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
 import '../models/call_history_entry.dart';
@@ -78,66 +79,119 @@ class _CallHistoryScreenState extends State<CallHistoryScreen>
           ],
         ),
       ),
-      // ✅ Column + Expanded ব্যবহার করে নিচে ব্যানার অ্যাড বসানো হলো
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<List<CallHistoryEntry>>(
-              stream: CallHistoryService.streamHistory(),
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: primaryMaroon),
-                  );
-                }
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth > 800;
 
-                final all = snap.data ?? [];
+          return Column(
+            children: [
+              Expanded(
+                child: StreamBuilder<List<CallHistoryEntry>>(
+                  stream: CallHistoryService.streamHistory(),
+                  builder: (context, snap) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: primaryMaroon),
+                      );
+                    }
 
-                return TabBarView(
-                  controller: _tabCtrl,
-                  children: [
-                    _buildList(all, bn, 'all'),
-                    _buildList(
-                      all.where((e) => e.isMissedFor(_myUid ?? '')).toList(),
-                      bn,
-                      'missed',
-                    ),
-                    _buildList(
-                      all.where((e) => e.isOutgoing(_myUid ?? '')).toList(),
-                      bn,
-                      'outgoing',
-                    ),
-                    _buildList(
-                      all.where((e) => !e.isOutgoing(_myUid ?? '')).toList(),
-                      bn,
-                      'incoming',
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-          // ✅ Fixed Banner Ad
-          const BannerAdWidget(
-            placementId: AdConfig.placementCallHistory,
-          ),
-        ],
+                    final all = snap.data ?? [];
+
+                    return TabBarView(
+                      controller: _tabCtrl,
+                      children: [
+                        _buildList(all, bn, 'all', isDesktop),
+                        _buildList(
+                          all
+                              .where((e) => e.isMissedFor(_myUid ?? ''))
+                              .toList(),
+                          bn,
+                          'missed',
+                          isDesktop,
+                        ),
+                        _buildList(
+                          all.where((e) => e.isOutgoing(_myUid ?? '')).toList(),
+                          bn,
+                          'outgoing',
+                          isDesktop,
+                        ),
+                        _buildList(
+                          all
+                              .where((e) => !e.isOutgoing(_myUid ?? ''))
+                              .toList(),
+                          bn,
+                          'incoming',
+                          isDesktop,
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              // ✅ AdMob শুধু মোবাইলে
+              if (!kIsWeb)
+                const SafeArea(
+                  top: false,
+                  child: BannerAdWidget(
+                      placementId: AdConfig.placementCallHistory),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
 
   // ============================================================
-  // LIST BUILDER
+  // LIST BUILDER (Responsive)
   // ============================================================
-  Widget _buildList(List<CallHistoryEntry> items, bool bn, String tab) {
+  Widget _buildList(
+      List<CallHistoryEntry> items, bool bn, String tab, bool isDesktop) {
     if (items.isEmpty) {
       return _buildEmptyState(bn, tab);
     }
 
+    if (isDesktop) {
+      return _buildWebLayout(items, bn);
+    } else {
+      return _buildMobileLayout(items, bn);
+    }
+  }
+
+  // ============================================================
+  // 📱 ১. মোবাইল লেআউট (হুবহু অক্ষত)
+  // ============================================================
+  Widget _buildMobileLayout(List<CallHistoryEntry> items, bool bn) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: items.length,
       itemBuilder: (context, i) => _buildTile(items[i], bn),
+    );
+  }
+
+  // ============================================================
+  // 💻 ২. ওয়েব লেআউট (নতুন প্রিমিয়াম গ্রিড ভিউ)
+  // ============================================================
+  Widget _buildWebLayout(List<CallHistoryEntry> items, bool bn) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3, // ৩টি কলাম
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              mainAxisExtent: 90, // কার্ডের উচ্চতা
+            ),
+            itemCount: items.length,
+            itemBuilder: (context, i) => _buildTile(items[i], bn),
+          ),
+        ),
+      ),
     );
   }
 
@@ -240,7 +294,9 @@ class _CallHistoryScreenState extends State<CallHistoryScreen>
     }
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      // ওয়েবের গ্রিডে মার্জিন কম দেওয়া হয়েছে যাতে সুন্দরভাবে বসে
+      margin: EdgeInsets.symmetric(
+          horizontal: kIsWeb ? 0 : 12, vertical: kIsWeb ? 0 : 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -313,6 +369,7 @@ class _CallHistoryScreenState extends State<CallHistoryScreen>
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         otherName,
