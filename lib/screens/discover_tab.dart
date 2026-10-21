@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
 import '../models/filter_options.dart';
@@ -16,7 +18,7 @@ import '../widgets/chat_icon_button.dart';
 import '../widgets/verified_badge.dart';
 import '../ads/banner_ad_widget.dart';
 import '../ads/ad_config.dart';
-import '../ads/rewarded_ad_manager.dart'; // ✅ রিওয়ার্ডেড অ্যাড ইমপোর্ট
+import '../ads/rewarded_ad_manager.dart';
 
 // ============================================================
 // DISCOVER TAB — Card Swiper with Pagination & Rewarded Ad Limit
@@ -54,7 +56,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
   // ✅ রিওয়ার্ডেড অ্যাড লিমিট স্টেট
   int _swipedCount = 0;
-  int _currentLimit = 20; // প্রথমে ২০টি ফ্রি
+  int _currentLimit = 20;
   bool _isAdLoading = false;
 
   final CardSwiperController _swiperController = CardSwiperController();
@@ -63,7 +65,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
   void initState() {
     super.initState();
     _loadMyInfo();
-    RewardedAdManager.loadAd(); // ✅ অ্যাড আগে থেকে লোড করে রাখি
+    RewardedAdManager.loadAd();
   }
 
   @override
@@ -76,27 +78,21 @@ class _DiscoverTabState extends State<DiscoverTab> {
   // LOAD MY INFO
   // ============================================================
   Future<void> _loadMyInfo() async {
-    debugPrint('🟢 [Discover] _loadMyInfo started');
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      debugPrint('❌ [Discover] No user logged in');
       setState(() {
         isLoading = false;
         errorMessage = widget.isBangla ? 'আপনি লগইন করা নেই।' : 'Not logged in';
       });
       return;
     }
-    debugPrint('🟢 [Discover] myUid = ${user.uid}');
 
     try {
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
-
       final data = doc.data() ?? {};
-      debugPrint('🟢 [Discover] my gender = ${data['gender']}');
-      debugPrint('🟢 [Discover] my district = ${data['district']}');
 
       setState(() {
         _myGender = (data['gender'] ?? '').toString().trim();
@@ -105,7 +101,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
 
       loadUsers(reset: true);
     } catch (e) {
-      debugPrint('❌ [Discover] _loadMyInfo error: $e');
       loadUsers(reset: true);
     }
   }
@@ -132,7 +127,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
         isLoadingMore = false;
         _currentIndex = 0;
         errorMessage = null;
-        // ✅ ফিল্টার চেঞ্জ বা রিফ্রেশ করলে লিমিট আবার ২০ এ ফিরে যাবে
         _swipedCount = 0;
         _currentLimit = 20;
       });
@@ -279,7 +273,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
         result.add(profile);
       }
     }
-
     return result;
   }
 
@@ -296,9 +289,6 @@ class _DiscoverTabState extends State<DiscoverTab> {
     }
   }
 
-  // ============================================================
-  // GENDER HELPERS
-  // ============================================================
   bool _isOppositeGender(String otherGender) {
     if (_myGender == null || _myGender!.isEmpty) return false;
     if (otherGender.isEmpty) return false;
@@ -319,7 +309,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
   }
 
   // ============================================================
-  // ✅ রিওয়ার্ডেড অ্যাড প্রম্পট ডায়ালগ
+  // রিওয়ার্ডেড অ্যাড প্রম্পট ডায়ালগ
   // ============================================================
   Future<void> _showAdPrompt() async {
     if (_isAdLoading) return;
@@ -334,10 +324,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
           children: [
             const Icon(Icons.lock, color: primaryGold, size: 28),
             const SizedBox(width: 8),
-            Text(
-              widget.isBangla ? 'লিমিট শেষ!' : 'Limit Reached!',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            Text(widget.isBangla ? 'লিমিট শেষ!' : 'Limit Reached!',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
         content: Text(
@@ -352,23 +340,24 @@ class _DiscoverTabState extends State<DiscoverTab> {
               Navigator.pop(ctx);
               _isAdLoading = false;
             },
-            child: Text(
-              widget.isBangla ? 'বাতিল' : 'Cancel',
-              style: const TextStyle(color: secondaryText),
-            ),
+            child: Text(widget.isBangla ? 'বাতিল' : 'Cancel',
+                style: const TextStyle(color: secondaryText)),
           ),
           ElevatedButton.icon(
             onPressed: () async {
               Navigator.pop(ctx);
-              // ✅ অ্যাড দেখানোর লজিক
-              final success = await RewardedAdManager.showAd(
-                onUserEarnedReward: () {},
-              );
+              if (kIsWeb) {
+                // ওয়েবে রিওয়ার্ডেড অ্যাড কাজ করে না, তাই সরাসরি আনলক করে দেব
+                setState(() => _currentLimit += 10);
+                _isAdLoading = false;
+                return;
+              }
+
+              final success =
+                  await RewardedAdManager.showAd(onUserEarnedReward: () {});
 
               if (success) {
-                setState(() {
-                  _currentLimit += 10; // ✅ আরও ১০টি লিমিট বাড়বে
-                });
+                setState(() => _currentLimit += 10);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -396,9 +385,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
             icon: const Icon(Icons.play_circle_fill),
             label: Text(widget.isBangla ? 'অ্যাড দেখুন' : 'Watch Ad'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: primaryMaroon,
-              foregroundColor: Colors.white,
-            ),
+                backgroundColor: primaryMaroon, foregroundColor: Colors.white),
           ),
         ],
       ),
@@ -467,11 +454,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
               children: [
                 const Icon(Icons.favorite, color: Colors.white),
                 const SizedBox(width: 10),
-                Text(
-                  widget.isBangla
-                      ? '${targetUser.name}-কে like করা হয়েছে'
-                      : 'Liked ${targetUser.name}',
-                ),
+                Text(widget.isBangla
+                    ? '${targetUser.name}-কে like করা হয়েছে'
+                    : 'Liked ${targetUser.name}'),
               ],
             ),
             backgroundColor: primaryMaroon,
@@ -558,11 +543,9 @@ class _DiscoverTabState extends State<DiscoverTab> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16)),
                     ),
-                    child: Text(
-                      bn ? 'দেখতে থাকুন' : 'Keep Swiping',
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.bold),
-                    ),
+                    child: Text(bn ? 'দেখতে থাকুন' : 'Keep Swiping',
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
@@ -701,7 +684,17 @@ class _DiscoverTabState extends State<DiscoverTab> {
           const SizedBox(width: 8),
         ],
       ),
-      body: _buildBody(bn),
+      // ✅ ওয়েবের জন্য পুরো বডিকে সেন্টার করা হলো
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: kIsWeb
+                ? 1000
+                : double.infinity, // ওয়েবে ফুল স্ক্রিন জুড়ে ছড়াবে না
+          ),
+          child: _buildBody(bn),
+        ),
+      ),
     );
   }
 
@@ -740,7 +733,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
               ),
             ),
           ),
-          const BannerAdWidget(placementId: AdConfig.placementDiscover),
+          if (!kIsWeb)
+            const BannerAdWidget(placementId: AdConfig.placementDiscover),
         ],
       );
     }
@@ -810,7 +804,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
               ),
             ),
           ),
-          const BannerAdWidget(placementId: AdConfig.placementDiscover),
+          if (!kIsWeb)
+            const BannerAdWidget(placementId: AdConfig.placementDiscover),
         ],
       );
     }
@@ -818,103 +813,115 @@ class _DiscoverTabState extends State<DiscoverTab> {
     return Column(
       children: [
         _buildFilterBar(bn),
+        // ✅ কার্ড এবং বাটন একসাথে সেন্টারে রাখা হলো
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Column(
-              children: [
-                Expanded(
-                  child: CardSwiper(
-                    controller: _swiperController,
-                    cardsCount: users.length,
-                    numberOfCardsDisplayed: users.length < 2 ? users.length : 2,
-                    backCardOffset: const Offset(0, 30),
-                    padding: const EdgeInsets.all(8),
-                    onSwipe: (previousIndex, currentIndex, direction) {
-                      // ✅ লিমিট চেক
-                      if (_isAdLoading) return false;
-                      if (_swipedCount >= _currentLimit) {
-                        _showAdPrompt();
-                        return false;
-                      }
+          child: Center(
+            child: ConstrainedBox(
+              // ✅ ওয়েবে কার্ডের সাইজ নির্দিষ্ট করে দেওয়া হলো যাতে বিশাল বড় না দেখায়
+              constraints: BoxConstraints(
+                maxWidth: kIsWeb ? 450 : double.infinity,
+                maxHeight: kIsWeb ? 600 : double.infinity,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: CardSwiper(
+                        controller: _swiperController,
+                        cardsCount: users.length,
+                        numberOfCardsDisplayed:
+                            users.length < 2 ? users.length : 2,
+                        backCardOffset: const Offset(0, 30),
+                        padding: const EdgeInsets.all(8),
+                        onSwipe: (previousIndex, currentIndex, direction) {
+                          if (_isAdLoading) return false;
+                          if (_swipedCount >= _currentLimit) {
+                            _showAdPrompt();
+                            return false;
+                          }
 
-                      final swipedUser = users[previousIndex];
-                      if (direction == CardSwiperDirection.right) {
-                        _likeUser(swipedUser);
-                      }
+                          final swipedUser = users[previousIndex];
+                          if (direction == CardSwiperDirection.right) {
+                            _likeUser(swipedUser);
+                          }
 
-                      // ✅ কাউন্ট বাড়াই
-                      setState(() {
-                        _swipedCount++;
-                      });
+                          setState(() {
+                            _swipedCount++;
+                          });
 
-                      if (currentIndex != null) {
-                        _currentIndex = currentIndex;
-                        _checkAndLoadMore(currentIndex);
-                      }
-                      return true;
-                    },
-                    cardBuilder: (context, index, horizontalOffsetPercentage,
-                        verticalOffsetPercentage) {
-                      return _buildSwipeCard(users[index], bn);
-                    },
-                  ),
-                ),
-                if (isLoadingMore)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Row(
+                          if (currentIndex != null) {
+                            _currentIndex = currentIndex;
+                            _checkAndLoadMore(currentIndex);
+                          }
+                          return true;
+                        },
+                        cardBuilder: (context,
+                            index,
+                            horizontalOffsetPercentage,
+                            verticalOffsetPercentage) {
+                          return _buildSwipeCard(users[index], bn);
+                        },
+                      ),
+                    ),
+                    if (isLoadingMore)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    color: primaryMaroon, strokeWidth: 2)),
+                            const SizedBox(width: 10),
+                            Text(bn ? 'আরো লোড হচ্ছে...' : 'Loading more...',
+                                style: const TextStyle(
+                                    fontSize: 12, color: secondaryText)),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                color: primaryMaroon, strokeWidth: 2)),
-                        const SizedBox(width: 10),
-                        Text(bn ? 'আরো লোড হচ্ছে...' : 'Loading more...',
-                            style: const TextStyle(
-                                fontSize: 12, color: secondaryText)),
+                        _buildActionButton(
+                          icon: Icons.close,
+                          color: Colors.grey.shade400,
+                          onTap: () {
+                            if (_isAdLoading) return;
+                            if (_swipedCount >= _currentLimit) {
+                              _showAdPrompt();
+                              return;
+                            }
+                            _swiperController.swipe(CardSwiperDirection.left);
+                          },
+                        ),
+                        const SizedBox(width: 24),
+                        _buildActionButton(
+                          icon: Icons.favorite,
+                          color: primaryMaroon,
+                          onTap: () {
+                            if (_isAdLoading) return;
+                            if (_swipedCount >= _currentLimit) {
+                              _showAdPrompt();
+                              return;
+                            }
+                            _swiperController.swipe(CardSwiperDirection.right);
+                          },
+                        ),
                       ],
                     ),
-                  ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildActionButton(
-                      icon: Icons.close,
-                      color: Colors.grey.shade400,
-                      onTap: () {
-                        if (_isAdLoading) return;
-                        if (_swipedCount >= _currentLimit) {
-                          _showAdPrompt();
-                          return;
-                        }
-                        _swiperController.swipe(CardSwiperDirection.left);
-                      },
-                    ),
-                    const SizedBox(width: 24),
-                    _buildActionButton(
-                      icon: Icons.favorite,
-                      color: primaryMaroon,
-                      onTap: () {
-                        if (_isAdLoading) return;
-                        if (_swipedCount >= _currentLimit) {
-                          _showAdPrompt();
-                          return;
-                        }
-                        _swiperController.swipe(CardSwiperDirection.right);
-                      },
-                    ),
+                    const SizedBox(height: 20),
                   ],
                 ),
-                const SizedBox(height: 20),
-              ],
+              ),
             ),
           ),
         ),
-        const BannerAdWidget(placementId: AdConfig.placementDiscover),
+        if (!kIsWeb)
+          const BannerAdWidget(placementId: AdConfig.placementDiscover),
       ],
     );
   }
@@ -1011,9 +1018,8 @@ class _DiscoverTabState extends State<DiscoverTab> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(20)),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
