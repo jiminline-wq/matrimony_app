@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -21,12 +22,11 @@ import 'story_details_screen.dart';
 import 'submit_story_screen.dart';
 import '../ads/banner_ad_widget.dart';
 import '../ads/ad_config.dart';
-import '../widgets/stories_row.dart'; // ✅ NEW
+import '../widgets/stories_row.dart';
 import '../widgets/profile_completeness_card.dart';
 import 'edit_profile_screen.dart';
-import '../models/user_profile.dart';
-import '../services/engagement_service.dart'; // ✅ এটি যোগ করুন
-import '../widgets/streak_card.dart'; // ✅ আপনার কোডে ইতিমধ্যেই আছে
+import '../services/engagement_service.dart';
+import '../widgets/streak_card.dart';
 
 // ============================================================
 // HOME TAB — Matrimonial.com.bd style full home page
@@ -42,12 +42,10 @@ class HomeTab extends StatefulWidget {
 }
 
 class _HomeTabState extends State<HomeTab> {
-  // 🔴 তোমার admin UID এখানে বসাও
-
   String? _myName = '';
   String? _myPhoto = '';
   String? _myUid;
-  Map<String, dynamic>? _myProfileData; // ✅ NEW
+  Map<String, dynamic>? _myProfileData;
 
   @override
   void initState() {
@@ -61,12 +59,9 @@ class _HomeTabState extends State<HomeTab> {
     final result = await EngagementService.checkAndUpdateStreak();
 
     if (result != null && mounted) {
-      // যদি ৭ দিন পূরণ হয় এবং রিওয়ার্ড পাওয়া যায়
       if (result['rewardGranted'] == true) {
         _showRewardDialog(result['message']);
-      }
-      // শুধু স্ট্রিক আপডেট হলে একটি Snackbar দেখান
-      else if (result['streak'] > 1) {
+      } else if (result['streak'] > 1) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('🔥 আপনি ${result['streak']} দিন টানা লগইন করেছেন!'),
@@ -119,110 +114,98 @@ class _HomeTabState extends State<HomeTab> {
       setState(() {
         _myName = (data['name'] ?? '').toString();
         _myPhoto = (data['photoUrl'] ?? data['photo'] ?? '').toString();
-        _myProfileData = data; // ✅ NEW
+        _myProfileData = data;
       });
     } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
-    // _buildTopBar-এর ঠিক পরে:
-
     final bn = widget.isBangla;
 
     return Scaffold(
       backgroundColor: warmWhite,
       body: Column(
         children: [
-          // ✅ Content — scroll হবে
           Expanded(
             child: RefreshIndicator(
               color: primaryMaroon,
               onRefresh: _loadMyInfo,
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  _buildTopBar(bn),
-
-                  // ✅ NEW — Profile completeness (হোমে ছোট করে)
-                  SliverToBoxAdapter(
-                    child: ProfileCompletenessCard(
-                      profile: _myProfileData,
-                      isBangla: bn,
-                      maxPendingShown: 2,
-                      onEditTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => EditProfileScreen(
-                              isBangla: bn,
-                              profile: UserProfile.fromMap(
-                                _myProfileData ?? {},
-                                docId: _myUid ?? '',
-                              ),
-                            ),
-                          ),
-                        ).then((_) => _loadMyInfo());
-                      },
-                    ),
-                  ),
-
-                  // ✅ Stories Row (24h ephemeral stories)
-                  SliverToBoxAdapter(
-                    child: StoriesRow(
-                      isBangla: bn,
-                      myName: _myName ?? '',
-                      myPhoto: _myPhoto ?? '',
-                    ),
-                  ),
-
-                  // ✅ নতুন স্ট্রিক কার্ড — এখানে যোগ করুন
-                  SliverToBoxAdapter(
-                    child: StreamBuilder<DocumentSnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(FirebaseAuth.instance.currentUser?.uid)
-                          .snapshots(),
-                      builder: (context, snapshot) {
-                        if (!snapshot.hasData || !snapshot.data!.exists) {
-                          return const SizedBox(); // ডেটা লোড না হলে কিছুই দেখাবে না
-                        }
-
-                        final data =
-                            snapshot.data!.data() as Map<String, dynamic>;
-                        final int streak = (data['loginStreak'] ?? 0) as int;
-
-                        // স্ট্রিক ১ এর বেশি হলেই কার্ডটি দেখাবে
-                        if (streak == 0) return const SizedBox();
-
-                        return StreakCard(
-                          streak: streak,
-                          isBangla: bn,
-                        );
-                      },
-                    ),
-                  ),
-
-                  SliverToBoxAdapter(child: _buildHeroBanner(bn)),
-                  SliverToBoxAdapter(child: _buildQuickActions(bn)),
-                  SliverToBoxAdapter(child: _buildFeaturedSection(bn)),
-                  SliverToBoxAdapter(child: _buildDistrictSection(bn)),
-                  SliverToBoxAdapter(child: _buildNewMatchesSection(bn)),
-                  SliverToBoxAdapter(child: _buildRecentlyJoined(bn)),
-                  SliverToBoxAdapter(child: _buildSuccessStories(bn)),
-                  SliverToBoxAdapter(child: _buildPremiumBanner(bn)),
-                  const SliverToBoxAdapter(child: SizedBox(height: 30)),
-                ],
-              ),
+              // ✅ ওয়েবের জন্য কন্টেন্ট সেন্টার করা হলো
+              child: kIsWeb
+                  ? Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                            maxWidth: 1200), // ওয়েবে সর্বোচ্চ ১২০০ পিক্সেল
+                        child: _buildMainSlivers(bn),
+                      ),
+                    )
+                  : _buildMainSlivers(bn),
             ),
           ),
-
-          // ✅ NEW: Fixed bottom banner — scroll হবে না
-          const BannerAdWidget(
-            placementId: AdConfig.placementHome,
-          ),
+          // ✅ ওয়েবে অ্যাড দেখাবে না, শুধু মোবাইলে দেখাবে
+          if (!kIsWeb)
+            const BannerAdWidget(placementId: AdConfig.placementHome),
         ],
       ),
+    );
+  }
+
+  // ✅ মূল কন্টেন্ট (কোড ডুপ্লিকেট এড়াতে আলাদা মেথড)
+  Widget _buildMainSlivers(bool bn) {
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        _buildTopBar(bn),
+        SliverToBoxAdapter(
+          child: ProfileCompletenessCard(
+            profile: _myProfileData,
+            isBangla: bn,
+            maxPendingShown: 2,
+            onEditTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EditProfileScreen(
+                    isBangla: bn,
+                    profile: UserProfile.fromMap(_myProfileData ?? {},
+                        docId: _myUid ?? ''),
+                  ),
+                ),
+              ).then((_) => _loadMyInfo());
+            },
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: StoriesRow(
+              isBangla: bn, myName: _myName ?? '', myPhoto: _myPhoto ?? ''),
+        ),
+        SliverToBoxAdapter(
+          child: StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(FirebaseAuth.instance.currentUser?.uid)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || !snapshot.data!.exists)
+                return const SizedBox();
+              final data = snapshot.data!.data() as Map<String, dynamic>;
+              final int streak = (data['loginStreak'] ?? 0) as int;
+              if (streak == 0) return const SizedBox();
+              return StreakCard(streak: streak, isBangla: bn);
+            },
+          ),
+        ),
+        SliverToBoxAdapter(child: _buildHeroBanner(bn)),
+        SliverToBoxAdapter(child: _buildQuickActions(bn)),
+        SliverToBoxAdapter(child: _buildFeaturedSection(bn)),
+        SliverToBoxAdapter(child: _buildDistrictSection(bn)),
+        SliverToBoxAdapter(child: _buildNewMatchesSection(bn)),
+        SliverToBoxAdapter(child: _buildRecentlyJoined(bn)),
+        SliverToBoxAdapter(child: _buildSuccessStories(bn)),
+        SliverToBoxAdapter(child: _buildPremiumBanner(bn)),
+        const SliverToBoxAdapter(child: SizedBox(height: 30)),
+      ],
     );
   }
 
@@ -252,11 +235,8 @@ class _HomeTabState extends State<HomeTab> {
                       imageUrl: _myPhoto!,
                       fit: BoxFit.cover,
                       placeholder: (_, __) => Container(color: lightMaroon),
-                      errorWidget: (_, __, ___) => const Icon(
-                        Icons.person,
-                        color: primaryMaroon,
-                        size: 20,
-                      ),
+                      errorWidget: (_, __, ___) => const Icon(Icons.person,
+                          color: primaryMaroon, size: 20),
                     )
                   : const Icon(Icons.person, color: primaryMaroon, size: 20),
             ),
@@ -270,20 +250,18 @@ class _HomeTabState extends State<HomeTab> {
                 Text(
                   bn ? 'স্বাগতম 👋' : 'Welcome 👋',
                   style: const TextStyle(
-                    fontSize: 11,
-                    color: secondaryText,
-                    fontWeight: FontWeight.w500,
-                  ),
+                      fontSize: 11,
+                      color: secondaryText,
+                      fontWeight: FontWeight.w500),
                 ),
                 Text(
                   _myName != null && _myName!.isNotEmpty
                       ? _myName!
                       : (bn ? 'Guest' : 'Guest'),
                   style: const TextStyle(
-                    fontSize: 15,
-                    color: deepMaroon,
-                    fontWeight: FontWeight.bold,
-                  ),
+                      fontSize: 15,
+                      color: deepMaroon,
+                      fontWeight: FontWeight.bold),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -317,10 +295,9 @@ class _HomeTabState extends State<HomeTab> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: primaryMaroon.withValues(alpha: 0.3),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
+                color: primaryMaroon.withValues(alpha: 0.3),
+                blurRadius: 16,
+                offset: const Offset(0, 6)),
           ],
         ),
         child: Column(
@@ -341,10 +318,9 @@ class _HomeTabState extends State<HomeTab> {
                   Text(
                     bn ? 'বিশ্বস্ত ম্যাট্রিমনি' : 'Trusted Matrimony',
                     style: const TextStyle(
-                      color: primaryGold,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
+                        color: primaryGold,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -355,11 +331,10 @@ class _HomeTabState extends State<HomeTab> {
                   ? 'জীবনসাথী খুঁজুন\nসহজে ও নিরাপদে'
                   : 'Find Your\nLife Partner',
               style: const TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                height: 1.2,
-              ),
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  height: 1.2),
             ),
             const SizedBox(height: 6),
             Text(
@@ -367,22 +342,17 @@ class _HomeTabState extends State<HomeTab> {
                   ? 'হাজারো ভেরিফাইড প্রোফাইল থেকে পছন্দের মানুষ'
                   : 'Search from thousands of verified profiles',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.85),
-                fontSize: 12,
-              ),
+                  color: Colors.white.withValues(alpha: 0.85), fontSize: 12),
             ),
             const SizedBox(height: 16),
             GestureDetector(
               onTap: () => _navigateTo(DiscoverTab(isBangla: bn)),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12)),
                 child: Row(
                   children: [
                     const Icon(Icons.search, color: primaryMaroon, size: 20),
@@ -392,30 +362,24 @@ class _HomeTabState extends State<HomeTab> {
                         bn
                             ? 'নাম, জেলা, পেশা...'
                             : 'Name, district, profession...',
-                        style: const TextStyle(
-                          color: secondaryText,
-                          fontSize: 13,
-                        ),
+                        style:
+                            const TextStyle(color: secondaryText, fontSize: 13),
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [primaryGold, primaryMaroon],
-                        ),
+                            colors: [primaryGold, primaryMaroon]),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         bn ? 'খুঁজুন' : 'Search',
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
@@ -437,25 +401,25 @@ class _HomeTabState extends State<HomeTab> {
         'icon': Icons.person_search,
         'label': bn ? 'খুঁজুন' : 'Search',
         'color': const Color(0xFF9C27B0),
-        'onTap': () => _navigateTo(DiscoverTab(isBangla: bn)),
+        'onTap': () => _navigateTo(DiscoverTab(isBangla: bn))
       },
       {
         'icon': Icons.location_on,
         'label': bn ? 'নিকটবর্তী' : 'Nearby',
         'color': const Color(0xFF2196F3),
-        'onTap': () => _navigateTo(NearbyTab(isBangla: bn)),
+        'onTap': () => _navigateTo(NearbyTab(isBangla: bn))
       },
       {
         'icon': Icons.favorite,
         'label': bn ? 'পছন্দ' : 'Likes',
         'color': const Color(0xFFE91E63),
-        'onTap': () => _navigateTo(WhoLikedMeScreen(isBangla: bn)),
+        'onTap': () => _navigateTo(WhoLikedMeScreen(isBangla: bn))
       },
       {
         'icon': Icons.bookmark,
         'label': bn ? 'শর্টলিস্ট' : 'Shortlist',
         'color': const Color(0xFFFF9800),
-        'onTap': () => _navigateTo(ShortlistScreen(isBangla: bn)),
+        'onTap': () => _navigateTo(ShortlistScreen(isBangla: bn))
       },
     ];
 
@@ -467,10 +431,9 @@ class _HomeTabState extends State<HomeTab> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: primaryMaroon.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
+              color: primaryMaroon.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 3))
         ],
       ),
       child: Row(
@@ -486,24 +449,17 @@ class _HomeTabState extends State<HomeTab> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: (a['color'] as Color).withValues(alpha: 0.12),
-                    ),
-                    child: Icon(
-                      a['icon'] as IconData,
-                      color: a['color'] as Color,
-                      size: 22,
-                    ),
+                        shape: BoxShape.circle,
+                        color: (a['color'] as Color).withValues(alpha: 0.12)),
+                    child: Icon(a['icon'] as IconData,
+                        color: a['color'] as Color, size: 22),
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    a['label'] as String,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: mainText,
-                    ),
-                  ),
+                  Text(a['label'] as String,
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: mainText)),
                 ],
               ),
             ),
@@ -530,25 +486,18 @@ class _HomeTabState extends State<HomeTab> {
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('users')
-                .where(
-                  'boostedUntil',
-                  isGreaterThan: Timestamp.now(),
-                ) // ✅ timestamp check
+                .where('boostedUntil', isGreaterThan: Timestamp.now())
                 .limit(10)
                 .snapshots(),
             builder: (context, snap) {
-              if (!snap.hasData || snap.data!.docs.isEmpty) {
+              if (!snap.hasData || snap.data!.docs.isEmpty)
                 return _buildEmptyFeatured(bn);
-              }
 
               final users = snap.data!.docs
                   .where((d) => d.id != _myUid)
-                  .map(
-                    (d) => UserProfile.fromMap(
+                  .map((d) => UserProfile.fromMap(
                       d.data() as Map<String, dynamic>,
-                      docId: d.id,
-                    ),
-                  )
+                      docId: d.id))
                   .toList();
 
               if (users.isEmpty) return _buildEmptyFeatured(bn);
@@ -579,16 +528,14 @@ class _HomeTabState extends State<HomeTab> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.star_outline,
-              size: 40,
-              color: primaryMaroon.withValues(alpha: 0.4),
-            ),
+            Icon(Icons.star_outline,
+                size: 40, color: primaryMaroon.withValues(alpha: 0.4)),
             const SizedBox(height: 8),
             Text(
-              bn ? 'এখনো কোনো ফিচারড প্রোফাইল নেই' : 'No featured profiles yet',
-              style: const TextStyle(fontSize: 12, color: secondaryText),
-            ),
+                bn
+                    ? 'এখনো কোনো ফিচারড প্রোফাইল নেই'
+                    : 'No featured profiles yet',
+                style: const TextStyle(fontSize: 12, color: secondaryText)),
           ],
         ),
       ),
@@ -605,10 +552,9 @@ class _HomeTabState extends State<HomeTab> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: primaryMaroon.withValues(alpha: 0.12),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
+                color: primaryMaroon.withValues(alpha: 0.12),
+                blurRadius: 12,
+                offset: const Offset(0, 4))
           ],
         ),
         child: ClipRRect(
@@ -622,22 +568,14 @@ class _HomeTabState extends State<HomeTab> {
                       fit: BoxFit.cover,
                       placeholder: (_, __) => Container(color: lightMaroon),
                       errorWidget: (_, __, ___) => Container(
-                        color: lightMaroon,
-                        child: const Icon(
-                          Icons.person,
-                          size: 60,
-                          color: primaryMaroon,
-                        ),
-                      ),
+                          color: lightMaroon,
+                          child: const Icon(Icons.person,
+                              size: 60, color: primaryMaroon)),
                     )
                   : Container(
                       color: lightMaroon,
-                      child: const Icon(
-                        Icons.person,
-                        size: 60,
-                        color: primaryMaroon,
-                      ),
-                    ),
+                      child: const Icon(Icons.person,
+                          size: 60, color: primaryMaroon)),
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
@@ -646,7 +584,7 @@ class _HomeTabState extends State<HomeTab> {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withValues(alpha: 0.75),
+                        Colors.black.withValues(alpha: 0.75)
                       ],
                       stops: const [0.4, 1.0],
                     ),
@@ -657,14 +595,11 @@ class _HomeTabState extends State<HomeTab> {
                 top: 10,
                 left: 10,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [primaryGold, primaryMaroon],
-                    ),
+                        colors: [primaryGold, primaryMaroon]),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Row(
@@ -672,14 +607,11 @@ class _HomeTabState extends State<HomeTab> {
                     children: [
                       Icon(Icons.bolt, color: Colors.white, size: 10),
                       SizedBox(width: 2),
-                      Text(
-                        'Boost',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      Text('Boost',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
@@ -696,10 +628,9 @@ class _HomeTabState extends State<HomeTab> {
                           ? (bn ? 'নাম নেই' : 'No name')
                           : user.name,
                       style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -707,31 +638,25 @@ class _HomeTabState extends State<HomeTab> {
                     Row(
                       children: [
                         if (user.age.isNotEmpty) ...[
-                          Text(
-                            '${user.age} ${bn ? "বছর" : "yrs"}',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: 11,
-                            ),
-                          ),
+                          Text('${user.age} ${bn ? "বছর" : "yrs"}',
+                              style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  fontSize: 11)),
                           const SizedBox(width: 6),
                           Container(
-                            width: 3,
-                            height: 3,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withValues(alpha: 0.6),
-                            ),
-                          ),
+                              width: 3,
+                              height: 3,
+                              decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withValues(alpha: 0.6))),
                           const SizedBox(width: 6),
                         ],
                         Expanded(
                           child: Text(
                             user.district.isEmpty ? '—' : user.district,
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: 11,
-                            ),
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 11),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -749,7 +674,7 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   // ============================================================
-  // 5. BROWSE BY DISTRICT
+  // 5. BROWSE BY DISTRICT (✅ Web Layout Added)
   // ============================================================
   Widget _buildDistrictSection(bool bn) {
     return Column(
@@ -760,19 +685,38 @@ class _HomeTabState extends State<HomeTab> {
           bn ? '৬৪টি জেলা থেকে পছন্দের প্রোফাইল' : 'All 64 districts',
           onSeeAll: () => _showAllDistricts(bn),
         ),
-        SizedBox(
-          height: 85,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
+
+        // ✅ ওয়েবের জন্য Wrap ব্যবহার করা হলো (একাধিক লাইনে জেলা দেখাবে)
+        if (kIsWeb)
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: bdDistricts.length > 10 ? 10 : bdDistricts.length,
-            itemBuilder: (_, i) {
-              final d = bdDistricts[i];
-              return _buildDistrictCard(d, bn);
-            },
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: bdDistricts
+                  .take(10)
+                  .map((d) => _buildDistrictCard(d, bn))
+                  .toList(),
+            ),
+          )
+        // মোবাইলের জন্য আগের হরাইজন্টাল লিস্ট
+        else
+          SizedBox(
+            height: 85,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: bdDistricts.length > 10 ? 10 : bdDistricts.length,
+              itemBuilder: (_, i) {
+                final d = bdDistricts[i];
+                return _buildDistrictCard(d, bn);
+              },
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
+
+        const SizedBox(height: 12),
+
+        // সব জেলা দেখার বাটন
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: GestureDetector(
@@ -784,29 +728,21 @@ class _HomeTabState extends State<HomeTab> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: primaryMaroon.withValues(alpha: 0.25),
-                  width: 1.3,
-                ),
+                    color: primaryMaroon.withValues(alpha: 0.25), width: 1.3),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.grid_view, color: primaryMaroon, size: 18),
                   const SizedBox(width: 8),
-                  Text(
-                    bn ? 'সব ৬৪টি জেলা দেখুন' : 'See all 64 districts',
-                    style: const TextStyle(
-                      color: primaryMaroon,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  Text(bn ? 'সব ৬৪টি জেলা দেখুন' : 'See all 64 districts',
+                      style: const TextStyle(
+                          color: primaryMaroon,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold)),
                   const SizedBox(width: 4),
-                  const Icon(
-                    Icons.arrow_forward,
-                    color: primaryMaroon,
-                    size: 16,
-                  ),
+                  const Icon(Icons.arrow_forward,
+                      color: primaryMaroon, size: 16),
                 ],
               ),
             ),
@@ -821,7 +757,9 @@ class _HomeTabState extends State<HomeTab> {
       onTap: () => _openDistrictUsers(district),
       child: Container(
         width: 110,
-        margin: const EdgeInsets.only(right: 10),
+        margin: kIsWeb
+            ? EdgeInsets.zero
+            : const EdgeInsets.only(right: 10), // ওয়েবে মার্জিন লাগবে না
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -829,7 +767,7 @@ class _HomeTabState extends State<HomeTab> {
             end: Alignment.bottomRight,
             colors: [
               primaryMaroon.withValues(alpha: 0.08),
-              primaryGold.withValues(alpha: 0.06),
+              primaryGold.withValues(alpha: 0.06)
             ],
           ),
           borderRadius: BorderRadius.circular(12),
@@ -842,30 +780,21 @@ class _HomeTabState extends State<HomeTab> {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: primaryMaroon.withValues(alpha: 0.15),
-              ),
-              child: const Icon(
-                Icons.location_on,
-                size: 14,
-                color: primaryMaroon,
-              ),
+                  shape: BoxShape.circle,
+                  color: primaryMaroon.withValues(alpha: 0.15)),
+              child:
+                  const Icon(Icons.location_on, size: 14, color: primaryMaroon),
             ),
             const SizedBox(height: 6),
-            Text(
-              district,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: deepMaroon,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              bn ? 'প্রোফাইল দেখুন' : 'View profiles',
-              style: const TextStyle(fontSize: 9.5, color: secondaryText),
-            ),
+            Text(district,
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: deepMaroon),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+            Text(bn ? 'প্রোফাইল দেখুন' : 'View profiles',
+                style: const TextStyle(fontSize: 9.5, color: secondaryText)),
           ],
         ),
       ),
@@ -891,16 +820,14 @@ class _HomeTabState extends State<HomeTab> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            DistrictUsersScreen(isBangla: widget.isBangla, district: district),
-      ),
+          builder: (_) => DistrictUsersScreen(
+              isBangla: widget.isBangla, district: district)),
     );
   }
 
-// ============================================================
-// 6. NEW MATCHES — FIXED
-// Reads user1/user2 cache directly (no extra reads!)
-// ============================================================
+  // ============================================================
+  // 6. NEW MATCHES
+  // ============================================================
   Widget _buildNewMatchesSection(bool bn) {
     if (_myUid == null) return const SizedBox.shrink();
 
@@ -921,22 +848,13 @@ class _HomeTabState extends State<HomeTab> {
           builder: (context, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const SizedBox(
-                height: 100,
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: primaryMaroon,
-                    strokeWidth: 2,
-                  ),
-                ),
-              );
+                  height: 100,
+                  child: Center(
+                      child: CircularProgressIndicator(
+                          color: primaryMaroon, strokeWidth: 2)));
             }
 
-            if (snap.hasError) {
-              debugPrint('❌ matches stream error: ${snap.error}');
-              return _buildEmptyMatches(bn);
-            }
-
-            if (!snap.hasData || snap.data!.docs.isEmpty) {
+            if (snap.hasError || !snap.hasData || snap.data!.docs.isEmpty) {
               return _buildEmptyMatches(bn);
             }
 
@@ -950,13 +868,10 @@ class _HomeTabState extends State<HomeTab> {
                 itemBuilder: (_, i) {
                   final data = matchDocs[i].data() as Map<String, dynamic>;
                   final users = List<String>.from(data['users'] ?? const []);
-                  final otherUid = users.firstWhere(
-                    (u) => u != _myUid,
-                    orElse: () => '',
-                  );
+                  final otherUid =
+                      users.firstWhere((u) => u != _myUid, orElse: () => '');
                   if (otherUid.isEmpty) return const SizedBox.shrink();
 
-                  // ✅ Read user1/user2 map directly — no extra read
                   final u1 = data['user1'] as Map<String, dynamic>?;
                   final u2 = data['user2'] as Map<String, dynamic>?;
                   final other = (u1?['uid'] == otherUid) ? u1 : u2;
@@ -972,9 +887,6 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-// ============================================================
-// MATCH AVATAR — from cached user1/user2 map
-// ============================================================
   Widget _buildMatchAvatarFromMap(Map<String, dynamic> user, bool bn) {
     final name = (user['name'] ?? '').toString();
     final photoUrl = (user['photoUrl'] ?? '').toString();
@@ -991,16 +903,12 @@ class _HomeTabState extends State<HomeTab> {
               height: 70,
               padding: const EdgeInsets.all(2),
               decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [primaryGold, primaryMaroon],
-                ),
-              ),
+                  shape: BoxShape.circle,
+                  gradient:
+                      LinearGradient(colors: [primaryGold, primaryMaroon])),
               child: Container(
                 decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                ),
+                    shape: BoxShape.circle, color: Colors.white),
                 child: ClipOval(
                   child: photoUrl.isNotEmpty
                       ? CachedNetworkImage(
@@ -1008,22 +916,14 @@ class _HomeTabState extends State<HomeTab> {
                           fit: BoxFit.cover,
                           placeholder: (_, __) => Container(color: lightMaroon),
                           errorWidget: (_, __, ___) => Container(
-                            color: lightMaroon,
-                            child: const Icon(
-                              Icons.person,
-                              color: primaryMaroon,
-                              size: 28,
-                            ),
-                          ),
+                              color: lightMaroon,
+                              child: const Icon(Icons.person,
+                                  color: primaryMaroon, size: 28)),
                         )
                       : Container(
                           color: lightMaroon,
-                          child: const Icon(
-                            Icons.person,
-                            color: primaryMaroon,
-                            size: 28,
-                          ),
-                        ),
+                          child: const Icon(Icons.person,
+                              color: primaryMaroon, size: 28)),
                 ),
               ),
             ),
@@ -1036,10 +936,7 @@ class _HomeTabState extends State<HomeTab> {
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 10,
-                  color: mainText,
-                  fontWeight: FontWeight.w500,
-                ),
+                    fontSize: 10, color: mainText, fontWeight: FontWeight.w500),
               ),
             ),
           ],
@@ -1048,33 +945,20 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-// ============================================================
-// OPEN PROFILE BY UID — fetch full profile on tap
-// (match doc-এ শুধু cached data; detail screen-এ full data দরকার)
-// ============================================================
   Future<void> _openProfileByUid(String uid) async {
     if (uid.isEmpty) return;
-
     try {
       final doc =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
-
       if (!doc.exists || !mounted) return;
-
       final user = UserProfile.fromMap(
-        doc.data() as Map<String, dynamic>? ?? {},
-        docId: uid,
-      );
-
+          doc.data() as Map<String, dynamic>? ?? {},
+          docId: uid);
       Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => UserProfileViewScreen(
-            isBangla: widget.isBangla,
-            user: user,
-          ),
-        ),
-      );
+          context,
+          MaterialPageRoute(
+              builder: (_) => UserProfileViewScreen(
+                  isBangla: widget.isBangla, user: user)));
     } catch (e) {
       debugPrint('❌ _openProfileByUid error: $e');
     }
@@ -1097,11 +981,10 @@ class _HomeTabState extends State<HomeTab> {
               const Icon(Icons.favorite_border, color: primaryMaroon, size: 20),
               const SizedBox(width: 8),
               Text(
-                bn
-                    ? 'এখনো কোনো ম্যাচ নেই — Like করুন!'
-                    : 'No matches yet — Start liking!',
-                style: const TextStyle(fontSize: 12, color: secondaryText),
-              ),
+                  bn
+                      ? 'এখনো কোনো ম্যাচ নেই — Like করুন!'
+                      : 'No matches yet — Start liking!',
+                  style: const TextStyle(fontSize: 12, color: secondaryText)),
             ],
           ),
         ),
@@ -1110,7 +993,7 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   // ============================================================
-  // 7. RECENTLY JOINED
+  // 7. RECENTLY JOINED (✅ Web Layout Added)
   // ============================================================
   Widget _buildRecentlyJoined(bool bn) {
     return Column(
@@ -1128,18 +1011,14 @@ class _HomeTabState extends State<HomeTab> {
               .limit(6)
               .snapshots(),
           builder: (context, snap) {
-            if (!snap.hasData || snap.data!.docs.isEmpty) {
+            if (!snap.hasData || snap.data!.docs.isEmpty)
               return _buildEmptyRecently(bn);
-            }
 
             final users = snap.data!.docs
                 .where((d) => d.id != _myUid)
-                .map(
-                  (d) => UserProfile.fromMap(
+                .map((d) => UserProfile.fromMap(
                     d.data() as Map<String, dynamic>,
-                    docId: d.id,
-                  ),
-                )
+                    docId: d.id))
                 .toList();
 
             if (users.isEmpty) return _buildEmptyRecently(bn);
@@ -1149,9 +1028,10 @@ class _HomeTabState extends State<HomeTab> {
               child: GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: users.length > 4 ? 4 : users.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
+                itemCount: users.length,
+                // ✅ ওয়েবে ৪ কলাম, মোবাইলে ২ কলাম
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: kIsWeb ? 4 : 2,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
                   childAspectRatio: 0.78,
@@ -1175,10 +1055,8 @@ class _HomeTabState extends State<HomeTab> {
         border: Border.all(color: primaryMaroon.withValues(alpha: 0.1)),
       ),
       child: Center(
-        child: Text(
-          bn ? 'এখনো কোনো সদস্য নেই' : 'No members yet',
-          style: const TextStyle(color: secondaryText, fontSize: 12),
-        ),
+        child: Text(bn ? 'এখনো কোনো সদস্য নেই' : 'No members yet',
+            style: const TextStyle(color: secondaryText, fontSize: 12)),
       ),
     );
   }
@@ -1192,10 +1070,9 @@ class _HomeTabState extends State<HomeTab> {
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: primaryMaroon.withValues(alpha: 0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
+                color: primaryMaroon.withValues(alpha: 0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 3))
           ],
         ),
         child: Column(
@@ -1203,9 +1080,8 @@ class _HomeTabState extends State<HomeTab> {
           children: [
             Expanded(
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(14),
-                ),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(14)),
                 child: user.photoUrl.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: user.photoUrl,
@@ -1213,22 +1089,14 @@ class _HomeTabState extends State<HomeTab> {
                         width: double.infinity,
                         placeholder: (_, __) => Container(color: lightMaroon),
                         errorWidget: (_, __, ___) => Container(
-                          color: lightMaroon,
-                          child: const Icon(
-                            Icons.person,
-                            size: 40,
-                            color: primaryMaroon,
-                          ),
-                        ),
+                            color: lightMaroon,
+                            child: const Icon(Icons.person,
+                                size: 40, color: primaryMaroon)),
                       )
                     : Container(
                         color: lightMaroon,
-                        child: const Icon(
-                          Icons.person,
-                          size: 40,
-                          color: primaryMaroon,
-                        ),
-                      ),
+                        child: const Icon(Icons.person,
+                            size: 40, color: primaryMaroon)),
               ),
             ),
             Padding(
@@ -1239,10 +1107,9 @@ class _HomeTabState extends State<HomeTab> {
                   Text(
                     user.name.isEmpty ? '—' : user.name,
                     style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: mainText,
-                    ),
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: mainText),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1250,36 +1117,26 @@ class _HomeTabState extends State<HomeTab> {
                   Row(
                     children: [
                       if (user.age.isNotEmpty) ...[
-                        Text(
-                          '${user.age} ${bn ? "বছর" : "yrs"}',
-                          style: const TextStyle(
-                            fontSize: 10.5,
-                            color: secondaryText,
-                          ),
-                        ),
+                        Text('${user.age} ${bn ? "বছর" : "yrs"}',
+                            style: const TextStyle(
+                                fontSize: 10.5, color: secondaryText)),
                         const SizedBox(width: 4),
                         if (user.district.isNotEmpty)
                           Container(
-                            width: 3,
-                            height: 3,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: secondaryText,
-                            ),
-                          ),
+                              width: 3,
+                              height: 3,
+                              decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: secondaryText)),
                         const SizedBox(width: 4),
                       ],
                       if (user.district.isNotEmpty)
                         Expanded(
-                          child: Text(
-                            user.district,
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              color: secondaryText,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          child: Text(user.district,
+                              style: const TextStyle(
+                                  fontSize: 10.5, color: secondaryText),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
                         ),
                     ],
                   ),
@@ -1293,15 +1150,12 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   // ============================================================
-  // 8. SUCCESS STORIES (from Firestore)
+  // 8. SUCCESS STORIES
   // ============================================================
   Widget _buildSuccessStories(bool bn) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ============================================================
-        // Header — with count + Submit button
-        // ============================================================
         StreamBuilder<int>(
           stream: SuccessStoryService.streamCount(),
           builder: (context, countSnap) {
@@ -1311,19 +1165,15 @@ class _HomeTabState extends State<HomeTab> {
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
               child: Row(
                 children: [
-                  // Title + subtitle
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          bn ? 'সফলতার গল্প' : 'Success Stories',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: deepMaroon,
-                          ),
-                        ),
+                        Text(bn ? 'সফলতার গল্প' : 'Success Stories',
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: deepMaroon)),
                         const SizedBox(height: 2),
                         Text(
                           count > 0
@@ -1332,59 +1182,40 @@ class _HomeTabState extends State<HomeTab> {
                                   : '$count happy couples')
                               : (bn ? 'তাদের জীবনের গল্প' : 'Happy couples'),
                           style: const TextStyle(
-                            fontSize: 11,
-                            color: secondaryText,
-                          ),
+                              fontSize: 11, color: secondaryText),
                         ),
                       ],
                     ),
                   ),
-
-                  // ✅ Submit Story button
                   GestureDetector(
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => SubmitStoryScreen(isBangla: bn),
-                        ),
-                      );
-                    },
+                            builder: (_) => SubmitStoryScreen(isBangla: bn))),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [primaryGold, primaryMaroon],
-                        ),
+                            colors: [primaryGold, primaryMaroon]),
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: primaryMaroon.withValues(alpha: 0.25),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
+                              color: primaryMaroon.withValues(alpha: 0.25),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3))
                         ],
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.add,
-                            color: Colors.white,
-                            size: 14,
-                          ),
+                          const Icon(Icons.add, color: Colors.white, size: 14),
                           const SizedBox(width: 4),
-                          Text(
-                            bn ? 'গল্প যোগ করুন' : 'Add Story',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          Text(bn ? 'গল্প যোগ করুন' : 'Add Story',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
@@ -1394,26 +1225,15 @@ class _HomeTabState extends State<HomeTab> {
             );
           },
         ),
-
-        // ============================================================
-        // Stories list
-        // ============================================================
         StreamBuilder<List<SuccessStory>>(
           stream: SuccessStoryService.streamApproved(limit: 10),
           builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
+            if (snap.connectionState == ConnectionState.waiting)
               return _buildStoriesLoading();
-            }
-
-            if (snap.hasError) {
-              debugPrint('❌ Success stories error: ${snap.error}');
-              return _buildStoriesEmpty(bn);
-            }
+            if (snap.hasError) return _buildStoriesEmpty(bn);
 
             final stories = snap.data ?? [];
-            if (stories.isEmpty) {
-              return _buildStoriesEmpty(bn);
-            }
+            if (stories.isEmpty) return _buildStoriesEmpty(bn);
 
             return SizedBox(
               height: 230,
@@ -1430,9 +1250,6 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  // ============================================================
-  // STORY CARD — with wedding photos
-  // ============================================================
   Widget _buildStoryCard(SuccessStory story, bool bn) {
     return GestureDetector(
       onTap: () => _openStoryDetails(story, bn),
@@ -1444,25 +1261,21 @@ class _HomeTabState extends State<HomeTab> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: primaryMaroon.withValues(alpha: 0.08),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
+                color: primaryMaroon.withValues(alpha: 0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 3))
           ],
           border: Border.all(color: primaryMaroon.withValues(alpha: 0.12)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ============================================================
-            // Photo header or icon header
-            // ============================================================
             if (story.hasPhotos)
               Container(
                 height: 110,
                 decoration: const BoxDecoration(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                ),
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(16))),
                 clipBehavior: Clip.antiAlias,
                 child: Stack(
                   fit: StackFit.expand,
@@ -1472,13 +1285,9 @@ class _HomeTabState extends State<HomeTab> {
                       fit: BoxFit.cover,
                       placeholder: (_, __) => Container(color: lightMaroon),
                       errorWidget: (_, __, ___) => Container(
-                        color: lightMaroon,
-                        child: const Icon(
-                          Icons.favorite,
-                          color: primaryMaroon,
-                          size: 40,
-                        ),
-                      ),
+                          color: lightMaroon,
+                          child: const Icon(Icons.favorite,
+                              color: primaryMaroon, size: 40)),
                     ),
                     Positioned.fill(
                       child: Container(
@@ -1488,65 +1297,49 @@ class _HomeTabState extends State<HomeTab> {
                             end: Alignment.bottomCenter,
                             colors: [
                               Colors.transparent,
-                              Colors.black.withValues(alpha: 0.55),
+                              Colors.black.withValues(alpha: 0.55)
                             ],
                           ),
                         ),
                       ),
                     ),
-                    // Photo count badge
                     if (story.photoCount > 1)
                       Positioned(
                         top: 8,
                         right: 8,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
+                              horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.65),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                              color: Colors.black.withValues(alpha: 0.65),
+                              borderRadius: BorderRadius.circular(10)),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
-                                Icons.photo_library,
-                                color: Colors.white,
-                                size: 11,
-                              ),
+                              const Icon(Icons.photo_library,
+                                  color: Colors.white, size: 11),
                               const SizedBox(width: 3),
-                              Text(
-                                '${story.photoCount}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              Text('${story.photoCount}',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
                       ),
-                    // Heart icon
                     Positioned(
                       top: 8,
                       left: 8,
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withValues(alpha: 0.9),
-                        ),
-                        child: const Icon(
-                          Icons.favorite,
-                          color: primaryMaroon,
-                          size: 14,
-                        ),
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(alpha: 0.9)),
+                        child: const Icon(Icons.favorite,
+                            color: primaryMaroon, size: 14),
                       ),
                     ),
-                    // Names at bottom
                     Positioned(
                       left: 10,
                       right: 10,
@@ -1558,7 +1351,7 @@ class _HomeTabState extends State<HomeTab> {
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                           shadows: [
-                            Shadow(color: Colors.black54, blurRadius: 4),
+                            Shadow(color: Colors.black54, blurRadius: 4)
                           ],
                         ),
                         maxLines: 1,
@@ -1572,15 +1365,12 @@ class _HomeTabState extends State<HomeTab> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      primaryMaroon.withValues(alpha: 0.08),
-                      primaryGold.withValues(alpha: 0.05),
-                    ],
-                  ),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
+                  gradient: LinearGradient(colors: [
+                    primaryMaroon.withValues(alpha: 0.08),
+                    primaryGold.withValues(alpha: 0.05)
+                  ]),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(16)),
                 ),
                 child: Row(
                   children: [
@@ -1588,24 +1378,19 @@ class _HomeTabState extends State<HomeTab> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: primaryMaroon.withValues(alpha: 0.1),
-                      ),
-                      child: const Icon(
-                        Icons.favorite,
-                        color: primaryMaroon,
-                        size: 22,
-                      ),
+                          shape: BoxShape.circle,
+                          color: primaryMaroon.withValues(alpha: 0.1)),
+                      child: const Icon(Icons.favorite,
+                          color: primaryMaroon, size: 22),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         story.coupleNames,
                         style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: deepMaroon,
-                        ),
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: deepMaroon),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1613,94 +1398,68 @@ class _HomeTabState extends State<HomeTab> {
                   ],
                 ),
               ),
-
-            // District + time
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
               child: Row(
                 children: [
                   if (story.district.isNotEmpty) ...[
-                    const Icon(
-                      Icons.location_on,
-                      size: 11,
-                      color: secondaryText,
-                    ),
+                    const Icon(Icons.location_on,
+                        size: 11, color: secondaryText),
                     const SizedBox(width: 2),
                     Expanded(
-                      child: Text(
-                        story.district,
-                        style: const TextStyle(
-                          fontSize: 10.5,
-                          color: secondaryText,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      child: Text(story.district,
+                          style: const TextStyle(
+                              fontSize: 10.5, color: secondaryText),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
                     ),
                   ] else
                     const Spacer(),
                   if (story.marriageDate != null)
-                    Text(
-                      story.timeAgo(bn),
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: secondaryText,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
+                    Text(story.timeAgo(bn),
+                        style: const TextStyle(
+                            fontSize: 10,
+                            color: secondaryText,
+                            fontStyle: FontStyle.italic)),
                 ],
               ),
             ),
-
-            // Story text
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                 child: Text(
                   '"${story.story}"',
                   style: const TextStyle(
-                    fontSize: 12,
-                    color: secondaryText,
-                    height: 1.4,
-                    fontStyle: FontStyle.italic,
-                  ),
+                      fontSize: 12,
+                      color: secondaryText,
+                      height: 1.4,
+                      fontStyle: FontStyle.italic),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
             ),
-
-            // Footer
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: primaryMaroon.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                        color: primaryMaroon.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8)),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.verified,
-                          color: primaryMaroon,
-                          size: 11,
-                        ),
+                        const Icon(Icons.verified,
+                            color: primaryMaroon, size: 11),
                         const SizedBox(width: 3),
-                        Text(
-                          bn ? 'ভেরিফাইড' : 'Verified',
-                          style: const TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            color: primaryMaroon,
-                          ),
-                        ),
+                        Text(bn ? 'ভেরিফাইড' : 'Verified',
+                            style: const TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: primaryMaroon)),
                       ],
                     ),
                   ),
@@ -1708,19 +1467,13 @@ class _HomeTabState extends State<HomeTab> {
                   if (story.hasPhotos)
                     Row(
                       children: [
-                        Text(
-                          bn ? 'ছবি দেখুন' : 'View photos',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: primaryMaroon,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const Icon(
-                          Icons.chevron_right,
-                          size: 14,
-                          color: primaryMaroon,
-                        ),
+                        Text(bn ? 'ছবি দেখুন' : 'View photos',
+                            style: const TextStyle(
+                                fontSize: 10,
+                                color: primaryMaroon,
+                                fontWeight: FontWeight.w600)),
+                        const Icon(Icons.chevron_right,
+                            size: 14, color: primaryMaroon),
                       ],
                     ),
                 ],
@@ -1748,11 +1501,8 @@ class _HomeTabState extends State<HomeTab> {
             border: Border.all(color: primaryMaroon.withValues(alpha: 0.08)),
           ),
           child: const Center(
-            child: CircularProgressIndicator(
-              color: primaryMaroon,
-              strokeWidth: 2,
-            ),
-          ),
+              child: CircularProgressIndicator(
+                  color: primaryMaroon, strokeWidth: 2)),
         ),
       ),
     );
@@ -1772,35 +1522,27 @@ class _HomeTabState extends State<HomeTab> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: primaryMaroon.withValues(alpha: 0.08),
-            ),
-            child: const Icon(
-              Icons.favorite_border,
-              color: primaryMaroon,
-              size: 22,
-            ),
+                shape: BoxShape.circle,
+                color: primaryMaroon.withValues(alpha: 0.08)),
+            child: const Icon(Icons.favorite_border,
+                color: primaryMaroon, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  bn ? 'এখনো কোনো সফল গল্প নেই' : 'No success stories yet',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: mainText,
-                  ),
-                ),
+                Text(bn ? 'এখনো কোনো সফল গল্প নেই' : 'No success stories yet',
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: mainText)),
                 const SizedBox(height: 3),
                 Text(
-                  bn
-                      ? 'শীঘ্রই আসছে — আপনিও পারেন গল্পের অংশ হতে'
-                      : 'Coming soon — you could be next!',
-                  style: const TextStyle(fontSize: 11, color: secondaryText),
-                ),
+                    bn
+                        ? 'শীঘ্রই আসছে — আপনিও পারেন গল্পের অংশ হতে'
+                        : 'Coming soon — you could be next!',
+                    style: const TextStyle(fontSize: 11, color: secondaryText)),
               ],
             ),
           ),
@@ -1811,11 +1553,9 @@ class _HomeTabState extends State<HomeTab> {
 
   void _openStoryDetails(SuccessStory story, bool bn) {
     Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => StoryDetailsScreen(story: story, isBangla: bn),
-      ),
-    );
+        context,
+        MaterialPageRoute(
+            builder: (_) => StoryDetailsScreen(story: story, isBangla: bn)));
   }
 
   // ============================================================
@@ -1834,10 +1574,9 @@ class _HomeTabState extends State<HomeTab> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: primaryGold.withValues(alpha: 0.4),
-            blurRadius: 14,
-            offset: const Offset(0, 5),
-          ),
+              color: primaryGold.withValues(alpha: 0.4),
+              blurRadius: 14,
+              offset: const Offset(0, 5))
         ],
       ),
       child: Row(
@@ -1845,52 +1584,39 @@ class _HomeTabState extends State<HomeTab> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.25),
-            ),
-            child: const Icon(
-              Icons.workspace_premium,
-              color: Colors.white,
-              size: 28,
-            ),
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.25)),
+            child: const Icon(Icons.workspace_premium,
+                color: Colors.white, size: 28),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  bn ? 'প্রিমিয়াম মেম্বার হোন' : 'Go Premium',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text(bn ? 'প্রিমিয়াম মেম্বার হোন' : 'Go Premium',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold)),
                 const SizedBox(height: 3),
                 Text(
-                  bn
-                      ? 'সব প্রোফাইল দেখুন · Limited offer'
-                      : 'See all profiles · Limited offer',
-                  style: const TextStyle(color: Colors.white, fontSize: 11),
-                ),
+                    bn
+                        ? 'সব প্রোফাইল দেখুন · Limited offer'
+                        : 'See all profiles · Limited offer',
+                    style: const TextStyle(color: Colors.white, fontSize: 11)),
               ],
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              bn ? 'বিস্তারিত' : 'View',
-              style: const TextStyle(
-                color: primaryMaroon,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+                color: Colors.white, borderRadius: BorderRadius.circular(20)),
+            child: Text(bn ? 'বিস্তারিত' : 'View',
+                style: const TextStyle(
+                    color: primaryMaroon,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1900,11 +1626,8 @@ class _HomeTabState extends State<HomeTab> {
   // ============================================================
   // HELPERS
   // ============================================================
-  Widget _buildSectionHeader(
-    String title,
-    String subtitle, {
-    VoidCallback? onSeeAll,
-  }) {
+  Widget _buildSectionHeader(String title, String subtitle,
+      {VoidCallback? onSeeAll}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
       child: Row(
@@ -1913,19 +1636,14 @@ class _HomeTabState extends State<HomeTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: deepMaroon,
-                  ),
-                ),
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: deepMaroon)),
                 const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(fontSize: 11, color: secondaryText),
-                ),
+                Text(subtitle,
+                    style: const TextStyle(fontSize: 11, color: secondaryText)),
               ],
             ),
           ),
@@ -1934,20 +1652,14 @@ class _HomeTabState extends State<HomeTab> {
               onTap: onSeeAll,
               child: Row(
                 children: [
-                  Text(
-                    widget.isBangla ? 'সব' : 'See all',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: primaryMaroon,
-                    ),
-                  ),
+                  Text(widget.isBangla ? 'সব' : 'See all',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: primaryMaroon)),
                   const SizedBox(width: 2),
-                  const Icon(
-                    Icons.chevron_right,
-                    size: 16,
-                    color: primaryMaroon,
-                  ),
+                  const Icon(Icons.chevron_right,
+                      size: 16, color: primaryMaroon),
                 ],
               ),
             ),
@@ -1964,9 +1676,8 @@ class _HomeTabState extends State<HomeTab> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            UserProfileViewScreen(isBangla: widget.isBangla, user: user),
-      ),
+          builder: (_) =>
+              UserProfileViewScreen(isBangla: widget.isBangla, user: user)),
     );
   }
 }
@@ -2008,9 +1719,8 @@ class _AllDistrictsSheetState extends State<_AllDistrictsSheet> {
       builder: (_, scrollCtrl) {
         return Container(
           decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
           child: Column(
             children: [
               Container(
@@ -2018,47 +1728,36 @@ class _AllDistrictsSheetState extends State<_AllDistrictsSheet> {
                 width: 44,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: secondaryText.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(3),
-                ),
+                    color: secondaryText.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(3)),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.location_city,
-                      color: primaryMaroon,
-                      size: 22,
-                    ),
+                    const Icon(Icons.location_city,
+                        color: primaryMaroon, size: 22),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         bn ? 'সব ৬৪টি জেলা' : 'All 64 Districts',
                         style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: deepMaroon,
-                        ),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: deepMaroon),
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: lightMaroon,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${bdDistricts.length}',
-                        style: const TextStyle(
-                          color: primaryMaroon,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                          color: lightMaroon,
+                          borderRadius: BorderRadius.circular(12)),
+                      child: Text('${bdDistricts.length}',
+                          style: const TextStyle(
+                              color: primaryMaroon,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -2071,27 +1770,21 @@ class _AllDistrictsSheetState extends State<_AllDistrictsSheet> {
                   decoration: InputDecoration(
                     hintText: bn ? 'জেলা খুঁজুন...' : 'Search district...',
                     hintStyle: const TextStyle(fontSize: 13),
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      color: primaryMaroon,
-                      size: 20,
-                    ),
+                    prefixIcon: const Icon(Icons.search,
+                        color: primaryMaroon, size: 20),
                     filled: true,
                     fillColor: warmWhite,
                     contentPadding: const EdgeInsets.symmetric(vertical: 0),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide(
-                        color: primaryMaroon.withValues(alpha: 0.15),
-                        width: 1.2,
-                      ),
+                          color: primaryMaroon.withValues(alpha: 0.15),
+                          width: 1.2),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                        color: primaryMaroon,
-                        width: 1.6,
-                      ),
+                      borderSide:
+                          const BorderSide(color: primaryMaroon, width: 1.6),
                     ),
                   ),
                 ),
@@ -2101,16 +1794,16 @@ class _AllDistrictsSheetState extends State<_AllDistrictsSheet> {
                 child: list.isEmpty
                     ? Center(
                         child: Text(
-                          bn ? 'কোনো জেলা পাওয়া যায়নি' : 'No district found',
-                          style: const TextStyle(color: secondaryText),
-                        ),
-                      )
+                            bn
+                                ? 'কোনো জেলা পাওয়া যায়নি'
+                                : 'No district found',
+                            style: const TextStyle(color: secondaryText)))
                     : GridView.builder(
                         controller: scrollCtrl,
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
+                        // ✅ ওয়েবে ৪ কলাম, মোবাইলে ২ কলাম
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: kIsWeb ? 4 : 2,
                           mainAxisSpacing: 10,
                           crossAxisSpacing: 10,
                           childAspectRatio: 2.8,
@@ -2122,41 +1815,34 @@ class _AllDistrictsSheetState extends State<_AllDistrictsSheet> {
                             onTap: () => widget.onSelect(d),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
+                                  horizontal: 12, vertical: 8),
                               decoration: BoxDecoration(
                                 color: warmWhite,
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: primaryMaroon.withValues(alpha: 0.15),
-                                  width: 1.2,
-                                ),
+                                    color:
+                                        primaryMaroon.withValues(alpha: 0.15),
+                                    width: 1.2),
                               ),
                               child: Row(
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.all(6),
                                     decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color:
-                                          primaryMaroon.withValues(alpha: 0.12),
-                                    ),
-                                    child: const Icon(
-                                      Icons.location_on,
-                                      color: primaryMaroon,
-                                      size: 12,
-                                    ),
+                                        shape: BoxShape.circle,
+                                        color: primaryMaroon.withValues(
+                                            alpha: 0.12)),
+                                    child: const Icon(Icons.location_on,
+                                        color: primaryMaroon, size: 12),
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
                                       d,
                                       style: const TextStyle(
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: mainText,
-                                      ),
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: mainText),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
