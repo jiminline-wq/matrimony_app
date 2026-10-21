@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -39,16 +40,20 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
   void initState() {
     super.initState();
     _load();
-    // ✅ পেজে ঢোকার সাথে সাথেই অ্যাড দেখানোর ফাংশন কল হবে
-    _showAdOnEnter();
+
+    // ✅ ওয়েবের জন্য সরাসরি আনলক, মোবাইলে অ্যাড দেখাবে
+    if (kIsWeb) {
+      _isUnlocked = true;
+    } else {
+      _showAdOnEnter();
+    }
   }
 
-  // ✅ পেজে ঢোকার সাথে সাথে অ্যাড দেখানোর লজিক
+  // ✅ মোবাইলে পেজে ঢোকার সাথে সাথে অ্যাড দেখানোর লজিক
   Future<void> _showAdOnEnter() async {
-    if (_isUnlocking) return;
+    if (_isUnlocking || kIsWeb) return;
     setState(() => _isUnlocking = true);
 
-    // অ্যাড দেখানোর আগে লোড হতে একটু সময় দেওয়া হলো
     await Future.delayed(const Duration(milliseconds: 500));
 
     try {
@@ -145,20 +150,27 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
           ],
         ),
       ),
-      body: _buildBody(bn),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth > 800;
+          return _buildBody(bn, isDesktop);
+        },
+      ),
     );
   }
 
-  Widget _buildBody(bool bn) {
+  Widget _buildBody(bool bn, bool isDesktop) {
     if (_isLoading || _isUnlocking) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const CircularProgressIndicator(color: primaryMaroon),
-            const SizedBox(height: 16),
-            Text(bn ? 'অ্যাড লোড হচ্ছে...' : 'Loading ad...',
-                style: const TextStyle(color: secondaryText)),
+            if (_isUnlocking) ...[
+              const SizedBox(height: 16),
+              Text(bn ? 'অ্যাড লোড হচ্ছে...' : 'Loading ad...',
+                  style: const TextStyle(color: secondaryText)),
+            ]
           ],
         ),
       );
@@ -168,7 +180,7 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
       return Center(child: Text(_errorMessage!));
     }
 
-    // ✅ ইউজার অ্যাড না দেখলে লক স্ক্রিন দেখাবে
+    // ✅ ইউজার অ্যাড না দেখলে লক স্ক্রিন দেখাবে (শুধু মোবাইলে)
     if (!_isUnlocked) {
       return Center(
         child: Padding(
@@ -219,10 +231,19 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
     }
 
     if (_users.isEmpty) {
-      return const Center(child: Text('কেউ নেই / No one found'));
+      return Center(
+          child: Text(bn ? 'কেউ নেই' : 'No one found',
+              style: const TextStyle(fontSize: 16, color: secondaryText)));
     }
 
-    // ✅ আনলকড থাকলে প্রোফাইল লিস্ট
+    // ✅ আনলকড থাকলে মোবাইল বা ওয়েব লেআউট দেখাবে
+    return isDesktop ? _buildWebLayout(bn) : _buildMobileLayout(bn);
+  }
+
+  // ============================================================
+  // 📱 ১. মোবাইল লেআউট (হুবহু অক্ষত)
+  // ============================================================
+  Widget _buildMobileLayout(bool bn) {
     return ListView.builder(
       padding: const EdgeInsets.all(12),
       itemCount: _users.length,
@@ -234,9 +255,7 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
+          color: Colors.white, borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -259,7 +278,10 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
                   borderRadius: BorderRadius.circular(14),
                   child: user.photoUrl.isNotEmpty
                       ? CachedNetworkImage(
-                          imageUrl: user.photoUrl, fit: BoxFit.cover)
+                          imageUrl: user.photoUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => const Icon(Icons.person,
+                              size: 40, color: primaryMaroon))
                       : const Icon(Icons.person,
                           size: 40, color: primaryMaroon),
                 ),
@@ -284,6 +306,159 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // ============================================================
+  // 💻 ২. ওয়েব লেআউট (নতুন প্রিমিয়াম গ্রিড ভিউ)
+  // ============================================================
+  Widget _buildWebLayout(bool bn) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(30),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // হেডার ইনফো (ঐচ্ছিক, সুন্দর দেখানোর জন্য)
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                        color: primaryMaroon.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16)),
+                    child: const Icon(Icons.location_city,
+                        color: primaryMaroon, size: 30),
+                  ),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.district,
+                        style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: deepMaroon),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        bn
+                            ? 'মোট ${_users.length}টি প্রোফাইল পাওয়া গেছে'
+                            : '${_users.length} profiles found',
+                        style:
+                            const TextStyle(fontSize: 14, color: secondaryText),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // গ্রিড ভিউ
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 20,
+                  mainAxisSpacing: 20,
+                  mainAxisExtent: 320, // কার্ডের নির্দিষ্ট উচ্চতা
+                ),
+                itemCount: _users.length,
+                itemBuilder: (context, index) {
+                  final user = _users[index];
+
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 15,
+                            offset: const Offset(0, 8))
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => UserProfileViewScreen(
+                                    isBangla: widget.isBangla, user: user))),
+                        hoverColor: primaryMaroon.withValues(alpha: 0.03),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // ইমেজ
+                            Expanded(
+                              flex: 5,
+                              child: ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(20)),
+                                child: user.photoUrl.isNotEmpty
+                                    ? CachedNetworkImage(
+                                        imageUrl: user.photoUrl,
+                                        fit: BoxFit.cover,
+                                        errorWidget: (_, __, ___) =>
+                                            _imgPlaceholder(),
+                                      )
+                                    : _imgPlaceholder(),
+                              ),
+                            ),
+
+                            // ইনফো
+                            Expanded(
+                              flex: 3,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      user.name.isEmpty ? '—' : user.name,
+                                      style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: mainText),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text('${user.age} • ${user.district}',
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            color: secondaryText)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _imgPlaceholder() {
+    return Container(
+      color: lightMaroon,
+      child: const Center(
+          child: Icon(Icons.person, size: 80, color: primaryMaroon)),
     );
   }
 }
