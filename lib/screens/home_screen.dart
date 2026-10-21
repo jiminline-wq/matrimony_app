@@ -1,23 +1,20 @@
 import 'dart:async';
-import '../services/engagement_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
 import '../services/badge_service.dart';
 import '../services/call_service.dart';
 import '../services/call_history_service.dart';
-import 'home_tab.dart'; // ✅ NEW
+import '../services/engagement_service.dart';
+import 'home_tab.dart';
 import 'my_profile_tab.dart';
 import 'discover_tab.dart';
 import 'matches_tab.dart';
 import 'nearby_tab.dart';
 import 'call_screen.dart';
 import 'call_history_screen.dart';
-
-// ============================================================
-// HOME SCREEN — 6 Tabs + Badges + Incoming Call Listener
-// ============================================================
 
 class HomeScreen extends StatefulWidget {
   final bool isBangla;
@@ -30,21 +27,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // ✅ সব variable class-এর শুরুতেই declare
   late int _currentIndex;
-
-  // Incoming call listener
   StreamSubscription<QuerySnapshot>? _incomingCallSub;
   String? _currentIncomingCallId;
   bool _isCallScreenOpen = false;
 
-  // ============================================================
-  // INIT
-  // ============================================================
   @override
   void initState() {
     super.initState();
-    // ✅ 6 tabs — index 0 থেকে 5
     _checkDailyStreak();
     _currentIndex = widget.initialIndex.clamp(0, 5);
     _listenForIncomingCalls();
@@ -52,14 +42,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _checkDailyStreak() async {
     final result = await EngagementService.checkAndUpdateStreak();
-
     if (result != null && mounted) {
-      // ✅ যদি রিওয়ার্ড পাওয়া যায়, তবে একটি Dialog দেখান
       if (result['rewardGranted'] == true) {
         _showRewardDialog(result['message']);
-      }
-      // ✅ শুধু স্ট্রিক আপডেট হলে একটি Snackbar দেখান (অপশনাল)
-      else if (result['streak'] > 1) {
+      } else if (result['streak'] > 1) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('🔥 আপনি ${result['streak']} দিন টানা লগইন করেছেন!'),
@@ -71,7 +57,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-// ✅ রিওয়ার্ড ডায়ালগ UI
   void _showRewardDialog(String message) {
     showDialog(
       context: context,
@@ -98,32 +83,20 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ============================================================
-  // INCOMING CALL LISTENER
-  // ============================================================
   void _listenForIncomingCalls() {
     _incomingCallSub = CallService.incomingCallStream().listen((snap) {
-      if (!mounted) return;
-      if (snap.docs.isEmpty) return;
-      if (_isCallScreenOpen) return; // already showing a call
+      if (!mounted || snap.docs.isEmpty || _isCallScreenOpen) return;
 
       final callDoc = snap.docs.first;
       final data = callDoc.data() as Map<String, dynamic>;
       final callId = callDoc.id;
 
-      // ✅ একই call-এ আবার navigate না করার জন্য
       if (_currentIncomingCallId == callId) return;
       _currentIncomingCallId = callId;
       _isCallScreenOpen = true;
 
-      debugPrint(
-        '📞 Incoming call detected: $callId from ${data['callerName']}',
-      );
-
-      // ✅ navigate after frame (context ready)
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -139,7 +112,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ).then((_) {
-          // CallScreen pop হলে flags reset
           _isCallScreenOpen = false;
           _currentIncomingCallId = null;
         });
@@ -147,151 +119,270 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // ============================================================
-  // DISPOSE
-  // ============================================================
   @override
   void dispose() {
     _incomingCallSub?.cancel();
     super.dispose();
   }
 
-  // ============================================================
-  // TAB TAP
-  // ============================================================
   void _onTabTap(int index) {
     if (index == _currentIndex) return;
     setState(() => _currentIndex = index);
   }
 
-  // ============================================================
-  // BUILD
-  // ============================================================
   @override
   Widget build(BuildContext context) {
     final bn = widget.isBangla;
 
-    // ✅ 6 tabs — Home সবার আগে
     final List<Widget> tabs = [
-      HomeTab(isBangla: bn), // ✅ 0 — Home
-      DiscoverTab(isBangla: bn), // 1 — Discover
-      NearbyTab(isBangla: bn), // 2 — Nearby
-      MatchesTab(isBangla: bn), // 3 — Matches
-      CallHistoryScreen(isBangla: bn), // 4 — Calls
-      MyProfileTab(isBangla: bn), // 5 — Profile (শেষে)
+      HomeTab(isBangla: bn),
+      DiscoverTab(isBangla: bn),
+      NearbyTab(isBangla: bn),
+      MatchesTab(isBangla: bn),
+      CallHistoryScreen(isBangla: bn),
+      MyProfileTab(isBangla: bn),
     ];
 
+    // ✅ ওয়েবের জন্য সাইডবার মেনু এবং মোবাইলের জন্য বটম নেভিগেশন
     return Scaffold(
       backgroundColor: warmWhite,
-      body: IndexedStack(index: _currentIndex, children: tabs),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
+      body: kIsWeb
+          ? Row(
+              children: [
+                _buildWebSidebar(bn),
+                Expanded(
+                  child: IndexedStack(index: _currentIndex, children: tabs),
+                ),
+              ],
+            )
+          : IndexedStack(index: _currentIndex, children: tabs),
+      bottomNavigationBar: kIsWeb ? null : _buildMobileBottomNav(bn),
+    );
+  }
+
+  // ============================================================
+  // 💻 ওয়েবের জন্য সাইডবার (Navigation Rail)
+  // ============================================================
+  Widget _buildWebSidebar(bool bn) {
+    return StreamBuilder<int>(
+      stream: BadgeService.streamNewMatchCount(),
+      builder: (context, matchSnap) {
+        final matchBadge = matchSnap.data ?? 0;
+        return StreamBuilder<int>(
+          stream: CallHistoryService.streamMissedCount(),
+          builder: (context, missedSnap) {
+            final missedCount = missedSnap.data ?? 0;
+
+            return NavigationRail(
+              backgroundColor: Colors.white,
+              selectedIndex: _currentIndex,
+              onDestinationSelected: _onTabTap,
+              extended: true, // ✅ ওয়েবে টেক্সট সহ দেখাবে
+              minExtendedWidth: 200,
+              selectedIconTheme: const IconThemeData(color: primaryMaroon),
+              selectedLabelTextStyle: const TextStyle(
+                  color: primaryMaroon,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15),
+              unselectedLabelTextStyle:
+                  const TextStyle(color: secondaryText, fontSize: 15),
+              leading: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 30.0),
+                child: Column(
+                  children: [
+                    Image.asset('assets/logo.png', width: 60, height: 60),
+                    const SizedBox(height: 10),
+                    Text(
+                      bn ? 'জীবন সাথী' : 'Jibon Sathi',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, color: deepMaroon),
+                    ),
+                  ],
+                ),
+              ),
+              destinations: [
+                NavigationRailDestination(
+                  icon: const Icon(Icons.home_outlined),
+                  selectedIcon: const Icon(Icons.home),
+                  label: Text(bn ? 'হোম' : 'Home'),
+                ),
+                NavigationRailDestination(
+                  icon: const Icon(Icons.explore_outlined),
+                  selectedIcon: const Icon(Icons.explore),
+                  label: Text(bn ? 'খুঁজুন' : 'Discover'),
+                ),
+                NavigationRailDestination(
+                  icon: const Icon(Icons.location_on_outlined),
+                  selectedIcon: const Icon(Icons.location_on),
+                  label: Text(bn ? 'নিকটবর্তী' : 'Nearby'),
+                ),
+                NavigationRailDestination(
+                  icon: BadgedIcon(
+                      icon: Icons.favorite_outline,
+                      count: matchBadge,
+                      iconColor: secondaryText,
+                      badgeColor: primaryMaroon),
+                  selectedIcon: BadgedIcon(
+                      icon: Icons.favorite,
+                      count: matchBadge,
+                      iconColor: primaryMaroon,
+                      badgeColor: primaryMaroon),
+                  label: Text(bn ? 'ম্যাচ' : 'Matches'),
+                ),
+                NavigationRailDestination(
+                  icon: BadgedIcon(
+                      icon: Icons.call_outlined,
+                      count: missedCount,
+                      iconColor: secondaryText,
+                      badgeColor: Colors.red),
+                  selectedIcon: BadgedIcon(
+                      icon: Icons.call,
+                      count: missedCount,
+                      iconColor: primaryMaroon,
+                      badgeColor: Colors.red),
+                  label: Text(bn ? 'কল' : 'Calls'),
+                ),
+                NavigationRailDestination(
+                  icon: const Icon(Icons.person_outline),
+                  selectedIcon: const Icon(Icons.person),
+                  label: Text(bn ? 'প্রোফাইল' : 'Profile'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // 📱 মোবাইলের জন্য বটম নেভিগেশন
+  // ============================================================
+  Widget _buildMobileBottomNav(bool bn) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
               color: primaryMaroon.withValues(alpha: 0.08),
               blurRadius: 12,
-              offset: const Offset(0, -3),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: StreamBuilder<int>(
-            stream: BadgeService.streamNewMatchCount(),
-            builder: (context, matchSnap) {
-              final matchBadge = matchSnap.data ?? 0;
-
-              return StreamBuilder<int>(
-                stream: CallHistoryService.streamMissedCount(),
-                builder: (context, missedSnap) {
-                  final missedCount = missedSnap.data ?? 0;
-
-                  return BottomNavigationBar(
-                    currentIndex: _currentIndex,
-                    onTap: _onTabTap,
-                    backgroundColor: Colors.white,
-                    selectedItemColor: primaryMaroon,
-                    unselectedItemColor: secondaryText,
-                    selectedLabelStyle: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10,
-                    ),
-                    unselectedLabelStyle: const TextStyle(fontSize: 9),
-                    type: BottomNavigationBarType.fixed,
-                    elevation: 0,
-                    selectedFontSize: 10,
-                    unselectedFontSize: 9,
-                    items: [
-                      // ✅ 1. Home
-                      BottomNavigationBarItem(
+              offset: const Offset(0, -3)),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: StreamBuilder<int>(
+          stream: BadgeService.streamNewMatchCount(),
+          builder: (context, matchSnap) {
+            final matchBadge = matchSnap.data ?? 0;
+            return StreamBuilder<int>(
+              stream: CallHistoryService.streamMissedCount(),
+              builder: (context, missedSnap) {
+                final missedCount = missedSnap.data ?? 0;
+                return BottomNavigationBar(
+                  currentIndex: _currentIndex,
+                  onTap: _onTabTap,
+                  backgroundColor: Colors.white,
+                  selectedItemColor: primaryMaroon,
+                  unselectedItemColor: secondaryText,
+                  selectedLabelStyle: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 10),
+                  unselectedLabelStyle: const TextStyle(fontSize: 9),
+                  type: BottomNavigationBarType.fixed,
+                  elevation: 0,
+                  items: [
+                    BottomNavigationBarItem(
                         icon: const Icon(Icons.home_outlined, size: 22),
                         activeIcon: const Icon(Icons.home, size: 22),
-                        label: bn ? 'হোম' : 'Home',
-                      ),
-
-                      // 2. Discover
-                      BottomNavigationBarItem(
+                        label: bn ? 'হোম' : 'Home'),
+                    BottomNavigationBarItem(
                         icon: const Icon(Icons.explore_outlined, size: 22),
                         activeIcon: const Icon(Icons.explore, size: 22),
-                        label: bn ? 'খুঁজুন' : 'Discover',
-                      ),
-
-                      // 3. Nearby
-                      BottomNavigationBarItem(
+                        label: bn ? 'খুঁজুন' : 'Discover'),
+                    BottomNavigationBarItem(
                         icon: const Icon(Icons.location_on_outlined, size: 22),
                         activeIcon: const Icon(Icons.location_on, size: 22),
-                        label: bn ? 'নিকটবর্তী' : 'Nearby',
-                      ),
-
-                      // 4. Matches (with badge)
-                      BottomNavigationBarItem(
-                        icon: BadgedIcon(
+                        label: bn ? 'নিকটবর্তী' : 'Nearby'),
+                    BottomNavigationBarItem(
+                      icon: BadgedIcon(
                           icon: Icons.favorite_outline,
                           count: matchBadge,
                           iconColor: secondaryText,
-                          badgeColor: primaryMaroon,
-                        ),
-                        activeIcon: BadgedIcon(
+                          badgeColor: primaryMaroon),
+                      activeIcon: BadgedIcon(
                           icon: Icons.favorite,
                           count: matchBadge,
                           iconColor: primaryMaroon,
-                          badgeColor: primaryMaroon,
-                        ),
-                        label: bn ? 'ম্যাচ' : 'Matches',
-                      ),
-
-                      // 5. Calls (with missed badge)
-                      BottomNavigationBarItem(
-                        icon: BadgedIcon(
+                          badgeColor: primaryMaroon),
+                      label: bn ? 'ম্যাচ' : 'Matches',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: BadgedIcon(
                           icon: Icons.call_outlined,
                           count: missedCount,
                           iconColor: secondaryText,
-                          badgeColor: Colors.red,
-                        ),
-                        activeIcon: BadgedIcon(
+                          badgeColor: Colors.red),
+                      activeIcon: BadgedIcon(
                           icon: Icons.call,
                           count: missedCount,
                           iconColor: primaryMaroon,
-                          badgeColor: Colors.red,
-                        ),
-                        label: bn ? 'কল' : 'Calls',
-                      ),
-
-                      // 6. Profile
-                      BottomNavigationBarItem(
+                          badgeColor: Colors.red),
+                      label: bn ? 'কল' : 'Calls',
+                    ),
+                    BottomNavigationBarItem(
                         icon: const Icon(Icons.person_outline, size: 22),
                         activeIcon: const Icon(Icons.person, size: 22),
-                        label: bn ? 'প্রোফাইল' : 'Profile',
-                      ),
-                    ],
-                  );
-                },
-              );
-            },
-          ),
+                        label: bn ? 'প্রোফাইল' : 'Profile'),
+                  ],
+                );
+              },
+            );
+          },
         ),
       ),
+    );
+  }
+}
+
+// BadgedIcon উইজেটটি এখানে ডিক্লেয়ার করা হলো যাতে সাইডবার ও বটম বার দুটোতেই ব্যবহার করা যায়
+class BadgedIcon extends StatelessWidget {
+  final IconData icon;
+  final int count;
+  final Color iconColor;
+  final Color badgeColor;
+
+  const BadgedIcon(
+      {super.key,
+      required this.icon,
+      required this.count,
+      required this.iconColor,
+      required this.badgeColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Icon(icon, size: 22, color: iconColor),
+        if (count > 0)
+          Positioned(
+            right: 0,
+            top: 0,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration:
+                  BoxDecoration(color: badgeColor, shape: BoxShape.circle),
+              constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+              child: Text(
+                count > 99 ? '99+' : '$count',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
