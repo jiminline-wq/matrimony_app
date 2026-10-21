@@ -26,7 +26,6 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-// ✅ SingleTickerProviderStateMixin যোগ করা হয়েছে অ্যানিমেশনের জন্য
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   final emailController = TextEditingController();
@@ -34,12 +33,11 @@ class _LoginScreenState extends State<LoginScreen>
   bool isLoggingIn = false;
   bool _isHoveringButton = false;
 
-  late AnimationController _animationController; // অ্যানিমেশন কন্ট্রোলার
+  late AnimationController _animationController;
 
   @override
   void initState() {
     super.initState();
-    // অ্যানিমেশন লুপ সেটআপ (4 সেকেন্ডে একবার সামনে-পেছনে)
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
@@ -48,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   void dispose() {
-    _animationController.dispose(); // অ্যানিমেশন ডিসপোজ
+    _animationController.dispose();
     emailController.dispose();
     passwordController.dispose();
     super.dispose();
@@ -531,12 +529,12 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   // ============================================================
-  // 💻 ওয়েব লেআউট (প্রিমিয়াম স্প্লিট স্ক্রিন + অ্যানিমেশন)
+  // 💻 ওয়েব লেআউট (লোগোর সাথে ম্যাচিং ব্যাকগ্রাউন্ড)
   // ============================================================
   Widget _buildWebLayout(bool bn) {
     return Row(
       children: [
-        // 🟢 বাম দিকের ব্র্যান্ডিং সেকশন
+        // 🟢 বাম দিকের ব্র্যান্ডিং সেকশন (লোগোর মতো হালকা কালার)
         Expanded(
           flex: 6,
           child: Container(
@@ -544,16 +542,17 @@ class _LoginScreenState extends State<LoginScreen>
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFF8B1E3F), Color(0xFF5E1128)],
+                // ✅ এখানে হালকা ক্রিম এবং অফ-হোয়াইট কালার দেওয়া হলো
+                colors: [Color(0xFFFDFBF7), Color(0xFFF7EBEE)],
               ),
             ),
             child: Stack(
               children: [
-                // ব্যাকগ্রাউন্ডে হালকা গ্লোয়িং সার্কেল (লোগো ফুটিয়ে তোলার জন্য)
+                // হালকা গোল্ডেন গ্লো (লোগো ফুটিয়ে তোলার জন্য)
                 Center(
                   child: Container(
-                    width: 400,
-                    height: 400,
+                    width: 450,
+                    height: 450,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: RadialGradient(
@@ -570,15 +569,13 @@ class _LoginScreenState extends State<LoginScreen>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // ✅ অ্যানিমেটেড লোগো (ভাসমান এবং ব্রিদিং ইফেক্ট)
+                      // ✅ অ্যানিমেটেড লোগো (ব্যাকগ্রাউন্ডের সাথে মিশে যাবে)
                       AnimatedBuilder(
                         animation: _animationController,
                         builder: (context, child) {
-                          // ভাসমান ইফেক্ট (উপর-নিচ)
                           final translate = math.sin(
                                   _animationController.value * math.pi * 2) *
                               12;
-                          // ব্রিদিং ইফেক্ট (ছোট-বড়)
                           final scale = 1 +
                               math.sin(_animationController.value *
                                       math.pi *
@@ -593,43 +590,22 @@ class _LoginScreenState extends State<LoginScreen>
                             ),
                           );
                         },
-                        child: Container(
-                          padding:
-                              const EdgeInsets.all(20), // লোগোর চারপাশে ফাঁকা
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white
-                                .withValues(alpha: 0.1), // গ্লাস ইফেক্ট
-                            border: Border.all(
-                              color: primaryGold.withValues(
-                                  alpha: 0.5), // গোল্ডেন বর্ডার
-                              width: 2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: primaryGold.withValues(alpha: 0.2),
-                                blurRadius: 30,
-                                spreadRadius: 5,
-                              ),
-                            ],
-                          ),
-                          child: Image.asset(
-                            'assets/logo.png',
-                            width: 140,
-                            height: 140,
-                            fit: BoxFit.contain,
-                          ),
+                        child: Image.asset(
+                          'assets/logo.png',
+                          width: 220, // লোগোটি একটু বড় করা হলো
+                          height: 220,
+                          fit: BoxFit.contain,
                         ),
                       ),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 30),
 
-                      // প্রিমিয়াম ফন্ট
+                      // ✅ লেখার কালার ডার্ক করা হলো (কারণ ব্যাকগ্রাউন্ড হালকা)
                       Text(
                         bn ? 'আবার স্বাগতম' : 'Welcome Back',
                         style: GoogleFonts.playfairDisplay(
                           fontSize: 50,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: deepMaroon, // ডার্ক মারুন কালার
                           letterSpacing: 1.5,
                         ),
                       ),
@@ -640,7 +616,7 @@ class _LoginScreenState extends State<LoginScreen>
                             : 'Your life partner is waiting for you.',
                         style: GoogleFonts.hindSiliguri(
                           fontSize: 22,
-                          color: Colors.white.withValues(alpha: 0.8),
+                          color: secondaryText, // সেকেন্ডারি টেক্সট কালার
                           fontStyle: FontStyle.italic,
                         ),
                       ),
@@ -734,7 +710,10 @@ class _LoginScreenState extends State<LoginScreen>
                           gradient: LinearGradient(
                             colors: _isHoveringButton
                                 ? [primaryMaroon, deepMaroon]
-                                : [const Color(0xFF9C27B0), primaryMaroon],
+                                : [
+                                    const Color(0xFFC59B4B),
+                                    primaryMaroon
+                                  ], // ওয়েবের জন্য গোল্ড-মারুন গ্রেডিয়েন্ট
                           ),
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
@@ -919,7 +898,7 @@ class _LoginScreenState extends State<LoginScreen>
         );
       },
       child: Text(
-        bn ? 'নতুন? আপনার প্রোফাইল তৈরি করুন' : 'New here? Create your profile',
+        bn ? 'নতুন? আপনার প্রোপাইল তৈরি করুন' : 'New here? Create your profile',
         style: const TextStyle(
             color: deepMaroon, fontWeight: FontWeight.bold, fontSize: 15),
       ),
