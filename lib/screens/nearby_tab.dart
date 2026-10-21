@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এবং defaultTargetPlatform এর জন্য
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -11,11 +12,11 @@ import '../services/location_service.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/chat_icon_button.dart';
 import 'user_profile_view_screen.dart';
-import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
-import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
+import '../ads/banner_ad_widget.dart';
+import '../ads/ad_config.dart';
 
 // ============================================================
-// NEARBY TAB — ২০ কিমি radius + distance sort + pagination
+// NEARBY TAB
 // ============================================================
 
 class NearbyTab extends StatefulWidget {
@@ -36,11 +37,9 @@ class _NearbyTabState extends State<NearbyTab> {
   String? _oppositeGender;
   String _searchQuery = '';
 
-  // ✅ My location
   double? _myLat;
   double? _myLng;
 
-  // ✅ Other users' location cache
   final Map<String, Map<String, double>> _userLocationCache = {};
 
   List<UserProfile> _allUsers = [];
@@ -71,9 +70,6 @@ class _NearbyTabState extends State<NearbyTab> {
     super.dispose();
   }
 
-  // ============================================================
-  // SCROLL LISTENER — Load More
-  // ============================================================
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final max = _scrollController.position.maxScrollExtent;
@@ -83,9 +79,6 @@ class _NearbyTabState extends State<NearbyTab> {
     }
   }
 
-  // ============================================================
-  // INIT — নিজের জেলা + gender + location
-  // ============================================================
   Future<void> _initData() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -100,12 +93,10 @@ class _NearbyTabState extends State<NearbyTab> {
     try {
       final doc =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
-
       final data = doc.data() ?? {};
       final myDistrict = (data['district'] ?? '').toString().trim();
       final myGender = (data['gender'] ?? '').toString().trim();
 
-      // ✅ Load my location
       final loc = data['location'] as Map<String, dynamic>?;
       final myLat = (loc?['lat'] as num?)?.toDouble();
       final myLng = (loc?['lng'] as num?)?.toDouble();
@@ -136,9 +127,6 @@ class _NearbyTabState extends State<NearbyTab> {
     }
   }
 
-  // ============================================================
-  // LOAD USERS — Pagination + 20km radius filter + distance sort
-  // ============================================================
   Future<void> _loadUsers({bool reset = false}) async {
     if (_selectedDistrict == null) return;
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -153,7 +141,6 @@ class _NearbyTabState extends State<NearbyTab> {
         _errorMessage = null;
       });
 
-      // Reload my location (maybe updated)
       try {
         final myDoc =
             await FirebaseFirestore.instance.collection('users').doc(uid).get();
@@ -164,7 +151,6 @@ class _NearbyTabState extends State<NearbyTab> {
         }
       } catch (_) {}
 
-      // Load liked + blocked
       try {
         final likedSnap = await FirebaseFirestore.instance
             .collection('likes')
@@ -183,43 +169,28 @@ class _NearbyTabState extends State<NearbyTab> {
 
     try {
       final batch = await _fetchNextBatch(uid);
-
-      // ✅ Load locations for new users
       await _loadLocationsForUsers(batch);
 
-      // ✅ Filter by 20km radius + skip users without location
       final List<UserProfile> withinRadius = [];
       for (final user in batch) {
         final lat = _getUserLat(user);
         final lng = _getUserLng(user);
-
         if (lat == null || lng == null) continue;
-
         final km = LocationService.calculateDistance(_myLat, _myLng, lat, lng);
         if (km == null) continue;
         if (km <= _maxRadiusKm) withinRadius.add(user);
       }
 
-      // ✅ Sort by distance (nearest first)
       withinRadius.sort((a, b) {
         final aKm = LocationService.calculateDistance(
-              _myLat,
-              _myLng,
-              _getUserLat(a),
-              _getUserLng(a),
-            ) ??
+                _myLat, _myLng, _getUserLat(a), _getUserLng(a)) ??
             9999;
         final bKm = LocationService.calculateDistance(
-              _myLat,
-              _myLng,
-              _getUserLat(b),
-              _getUserLng(b),
-            ) ??
+                _myLat, _myLng, _getUserLat(b), _getUserLng(b)) ??
             9999;
         return aKm.compareTo(bKm);
       });
 
-      // ✅ Boosted users stay on top (within sorted order)
       final boosted = withinRadius
           .where((u) => BoostService.isBoostActive(u.boostedUntil))
           .toList();
@@ -242,31 +213,23 @@ class _NearbyTabState extends State<NearbyTab> {
     }
   }
 
-  // ============================================================
-  // FETCH NEXT BATCH
-  // ============================================================
   Future<List<UserProfile>> _fetchNextBatch(String myUid) async {
     final result = <UserProfile>[];
     int attempts = 0;
 
     while (result.length < _pageSize && _hasMore && attempts < 5) {
       attempts++;
-
       Query q = FirebaseFirestore.instance.collection('users');
 
-      if (_selectedDistrict != null) {
+      if (_selectedDistrict != null)
         q = q.where('district', isEqualTo: _selectedDistrict);
-      }
-      if (_oppositeGender != null) {
+      if (_oppositeGender != null)
         q = q.where('gender', isEqualTo: _oppositeGender);
-      }
 
       q = q.orderBy(FieldPath.documentId);
       q = q.limit(_pageSize);
 
-      if (_lastDoc != null) {
-        q = q.startAfterDocument(_lastDoc!);
-      }
+      if (_lastDoc != null) q = q.startAfterDocument(_lastDoc!);
 
       final snap = await q.get();
 
@@ -290,18 +253,13 @@ class _NearbyTabState extends State<NearbyTab> {
         result.add(UserProfile.fromMap(data, docId: doc.id));
       }
     }
-
     return result;
   }
 
-  // ============================================================
-  // LOAD LOCATIONS FOR USERS
-  // ============================================================
   Future<void> _loadLocationsForUsers(List<UserProfile> users) async {
     final futures = <Future>[];
     for (final user in users) {
       if (_userLocationCache.containsKey(user.uid)) continue;
-
       futures.add(() async {
         try {
           final doc = await FirebaseFirestore.instance
@@ -321,26 +279,15 @@ class _NearbyTabState extends State<NearbyTab> {
     await Future.wait(futures);
   }
 
-  double? _getUserLat(UserProfile user) {
-    return _userLocationCache[user.uid]?['lat'];
-  }
+  double? _getUserLat(UserProfile user) => _userLocationCache[user.uid]?['lat'];
+  double? _getUserLng(UserProfile user) => _userLocationCache[user.uid]?['lng'];
 
-  double? _getUserLng(UserProfile user) {
-    return _userLocationCache[user.uid]?['lng'];
-  }
-
-  // ============================================================
-  // LOAD MORE
-  // ============================================================
   Future<void> _loadMore() async {
     if (_isLoading || _isLoadingMore || !_hasMore) return;
     setState(() => _isLoadingMore = true);
     await _loadUsers();
   }
 
-  // ============================================================
-  // SEARCH FILTER
-  // ============================================================
   List<UserProfile> get _filteredUsers {
     if (_searchQuery.isEmpty) return _allUsers;
     final q = _searchQuery.toLowerCase();
@@ -351,9 +298,6 @@ class _NearbyTabState extends State<NearbyTab> {
     }).toList();
   }
 
-  // ============================================================
-  // DISTRICT PICKER
-  // ============================================================
   Future<void> _pickDistrict() async {
     final picked = await showModalBottomSheet<String>(
       context: context,
@@ -375,9 +319,6 @@ class _NearbyTabState extends State<NearbyTab> {
     }
   }
 
-  // ============================================================
-  // OPEN PROFILE
-  // ============================================================
   Future<void> _openProfile(UserProfile user) async {
     await Navigator.push(
       context,
@@ -390,55 +331,86 @@ class _NearbyTabState extends State<NearbyTab> {
   }
 
   // ============================================================
-  // BUILD
+  // BUILD (Responsive Layout Switcher)
   // ============================================================
   @override
   Widget build(BuildContext context) {
     final bn = widget.isBangla;
 
-    return Scaffold(
-      backgroundColor: warmWhite,
-      appBar: AppBar(
-        backgroundColor: warmWhite,
-        elevation: 0,
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-        title: Text(
-          bn ? 'কাছের মানুষ' : 'Nearby',
-          style: const TextStyle(
-            color: deepMaroon,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          ChatIconButton(isBangla: bn),
-          NotificationBell(isBangla: bn),
-          IconButton(
-            onPressed: () => _loadUsers(reset: true),
-            icon: const Icon(Icons.refresh, color: primaryMaroon),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildGenderHint(bn),
-          _buildDistrictBar(bn),
-          _buildSearchBar(bn),
-          Expanded(child: _buildBody(bn)),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth > 800;
 
-          // ✅ Fixed Banner Ad at the bottom
-          const BannerAdWidget(
-            placementId: AdConfig.placementNearby,
+        return Scaffold(
+          backgroundColor: warmWhite,
+          appBar: AppBar(
+            backgroundColor: warmWhite,
+            elevation: 0,
+            centerTitle: isDesktop, // ওয়েবে সেন্টার, মোবাইলে লেফট
+            automaticallyImplyLeading: false,
+            title: Text(
+              bn ? 'কাছের মানুষ' : 'Nearby',
+              style: const TextStyle(
+                  color: deepMaroon, fontWeight: FontWeight.bold),
+            ),
+            actions: [
+              ChatIconButton(isBangla: bn),
+              NotificationBell(isBangla: bn),
+              IconButton(
+                onPressed: () => _loadUsers(reset: true),
+                icon: const Icon(Icons.refresh, color: primaryMaroon),
+              ),
+            ],
           ),
-        ],
-      ),
+          body: Column(
+            children: [
+              // 📱 মোবাইল ফিল্টার বার
+              if (!isDesktop) ...[
+                _buildGenderHint(bn),
+                _buildDistrictBar(bn),
+                _buildSearchBar(bn),
+              ],
+
+              // 💻 ওয়েব ফিল্টার বার (পাশাপাশি)
+              if (isDesktop)
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1200),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 16),
+                      child: Row(
+                        children: [
+                          Expanded(flex: 1, child: _buildDistrictBar(bn)),
+                          const SizedBox(width: 20),
+                          Expanded(flex: 2, child: _buildSearchBar(bn)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+              // মেইন বডি
+              Expanded(
+                child: isDesktop ? _buildWebBody(bn) : _buildMobileBody(bn),
+              ),
+
+              // ✅ AdMob শুধু মোবাইলে
+              if (!kIsWeb)
+                const SafeArea(
+                  top: false,
+                  child: BannerAdWidget(placementId: AdConfig.placementNearby),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  // -------- Gender hint (with location status) --------
+  // -------- Gender hint --------
   Widget _buildGenderHint(bool bn) {
     if (_oppositeGender == null) return const SizedBox.shrink();
-
     final isFemale = _oppositeGender == 'Female';
     final hasLocation = _myLat != null && _myLng != null;
 
@@ -450,17 +422,14 @@ class _NearbyTabState extends State<NearbyTab> {
           color: isFemale ? const Color(0xFFF7EBEE) : const Color(0xFFEAF1FB),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color:
-                (isFemale ? primaryMaroon : Colors.blue).withValues(alpha: 0.2),
-          ),
+              color: (isFemale ? primaryMaroon : Colors.blue)
+                  .withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
-            Icon(
-              isFemale ? Icons.female : Icons.male,
-              size: 16,
-              color: isFemale ? primaryMaroon : Colors.blue.shade700,
-            ),
+            Icon(isFemale ? Icons.female : Icons.male,
+                size: 16,
+                color: isFemale ? primaryMaroon : Colors.blue.shade700),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -472,10 +441,9 @@ class _NearbyTabState extends State<NearbyTab> {
                         ? 'শুধু ${isFemale ? "মহিলা" : "পুরুষ"} প্রোফাইল'
                         : 'Showing ${isFemale ? "female" : "male"} only'),
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: isFemale ? deepMaroon : Colors.blue.shade800,
-                ),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isFemale ? deepMaroon : Colors.blue.shade800),
               ),
             ),
           ],
@@ -486,60 +454,48 @@ class _NearbyTabState extends State<NearbyTab> {
 
   // -------- District bar --------
   Widget _buildDistrictBar(bool bn) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: GestureDetector(
-        onTap: _pickDistrict,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: primaryMaroon.withValues(alpha: 0.25),
-              width: 1.4,
-            ),
-            boxShadow: [
-              BoxShadow(
+    return GestureDetector(
+      onTap: _pickDistrict,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+              color: primaryMaroon.withValues(alpha: 0.25), width: 1.4),
+          boxShadow: [
+            BoxShadow(
                 color: primaryMaroon.withValues(alpha: 0.06),
                 blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.location_city, color: primaryMaroon, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      bn ? 'জেলা' : 'District',
+                offset: const Offset(0, 3))
+          ],
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.location_city, color: primaryMaroon, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(bn ? 'জেলা' : 'District',
                       style: const TextStyle(
-                        fontSize: 11,
-                        color: secondaryText,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _selectedDistrict ?? '—',
+                          fontSize: 11,
+                          color: secondaryText,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(_selectedDistrict ?? '—',
                       style: const TextStyle(
-                        fontSize: 15,
-                        color: mainText,
-                        fontWeight: FontWeight.bold,
-                      ),
+                          fontSize: 15,
+                          color: mainText,
+                          fontWeight: FontWeight.bold),
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
+                      overflow: TextOverflow.ellipsis),
+                ],
               ),
-              const Icon(Icons.keyboard_arrow_down, color: primaryMaroon),
-            ],
-          ),
+            ),
+            const Icon(Icons.keyboard_arrow_down, color: primaryMaroon),
+          ],
         ),
       ),
     );
@@ -547,184 +503,53 @@ class _NearbyTabState extends State<NearbyTab> {
 
   // -------- Search bar --------
   Widget _buildSearchBar(bool bn) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: TextField(
-        controller: _searchController,
-        onChanged: (v) => setState(() => _searchQuery = v.trim()),
-        style: const TextStyle(fontSize: 14, color: mainText),
-        decoration: InputDecoration(
-          hintText:
-              bn ? 'নাম / পেশা / শিক্ষা খুঁজুন' : 'Search name / profession',
-          hintStyle: const TextStyle(fontSize: 13, color: secondaryText),
-          prefixIcon: const Icon(Icons.search, color: primaryMaroon, size: 20),
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() => _searchQuery = '');
-                  },
-                )
-              : null,
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(vertical: 0),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(
-              color: primaryMaroon.withValues(alpha: 0.15),
-              width: 1.2,
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: primaryMaroon, width: 1.6),
-          ),
+    return TextField(
+      controller: _searchController,
+      onChanged: (v) => setState(() => _searchQuery = v.trim()),
+      style: const TextStyle(fontSize: 14, color: mainText),
+      decoration: InputDecoration(
+        hintText:
+            bn ? 'নাম / পেশা / শিক্ষা খুঁজুন' : 'Search name / profession',
+        hintStyle: const TextStyle(fontSize: 13, color: secondaryText),
+        prefixIcon: const Icon(Icons.search, color: primaryMaroon, size: 20),
+        suffixIcon: _searchQuery.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = '');
+                },
+              )
+            : null,
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+              color: primaryMaroon.withValues(alpha: 0.15), width: 1.2),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: primaryMaroon, width: 1.6),
         ),
       ),
     );
   }
 
-  // -------- Body --------
-  Widget _buildBody(bool bn) {
-    if (_isLoading) {
+  // ============================================================
+  // 📱 ১. মোবাইল বডি (Original)
+  // ============================================================
+  Widget _buildMobileBody(bool bn) {
+    if (_isLoading)
       return const Center(
-        child: CircularProgressIndicator(color: primaryMaroon),
-      );
-    }
-
-    if (_errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 60, color: primaryMaroon),
-              const SizedBox(height: 16),
-              Text(
-                _errorMessage!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16, color: mainText),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => _loadUsers(reset: true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryMaroon,
-                  foregroundColor: Colors.white,
-                ),
-                child: Text(bn ? 'আবার চেষ্টা' : 'Retry'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+          child: CircularProgressIndicator(color: primaryMaroon));
+    if (_errorMessage != null) return _buildError(bn);
 
     final users = _filteredUsers;
     final noLocation = _myLat == null || _myLng == null;
 
-    if (users.isEmpty) {
-      // ✅ FIX: LayoutBuilder + SingleChildScrollView — overflow হবে না
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(30),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        noLocation
-                            ? Icons.location_off
-                            : (_searchQuery.isNotEmpty
-                                ? Icons.search_off
-                                : Icons.person_search),
-                        size: 80,
-                        color: primaryMaroon.withValues(alpha: 0.7),
-                      ),
-                      const SizedBox(height: 18),
-                      Text(
-                        noLocation
-                            ? (bn ? 'Location চালু করুন' : 'Enable Location')
-                            : (_searchQuery.isNotEmpty
-                                ? (bn
-                                    ? 'কিছু পাওয়া যায়নি'
-                                    : 'No results found')
-                                : (bn
-                                    ? '২০ কিমি এর মধ্যে কেউ নেই'
-                                    : 'No one within 20 km')),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: mainText,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        noLocation
-                            ? (bn
-                                ? 'কাছের মানুষ দেখতে location permission দিন'
-                                : 'Grant location permission to see nearby people')
-                            : (bn
-                                ? 'অন্য জেলা বেছে নিন বা রিফ্রেশ করুন'
-                                : 'Try another district or refresh'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: secondaryText,
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      ElevatedButton.icon(
-                        onPressed: noLocation
-                            ? () async {
-                                final granted =
-                                    await LocationService.requestPermission();
-                                if (granted) {
-                                  await LocationService
-                                      .saveLocationToFirestore();
-                                  _initData();
-                                }
-                              }
-                            : _pickDistrict,
-                        icon: Icon(
-                          noLocation ? Icons.my_location : Icons.swap_horiz,
-                        ),
-                        label: Text(
-                          noLocation
-                              ? (bn ? 'Location চালু করুন' : 'Enable Location')
-                              : (bn ? 'জেলা বদলান' : 'Change District'),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryMaroon,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      );
-    }
+    if (users.isEmpty) return _buildEmptyState(bn, noLocation);
 
     final itemCount = users.length + (_hasMore ? 1 : 0);
 
@@ -737,55 +562,15 @@ class _NearbyTabState extends State<NearbyTab> {
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
         itemCount: itemCount,
         itemBuilder: (context, i) {
-          if (i == users.length) {
-            return _buildLoadMoreIndicator(bn);
-          }
-          return _buildUserCard(users[i], bn);
+          if (i == users.length) return _buildLoadMoreIndicator(bn);
+          return _buildMobileUserCard(users[i], bn);
         },
       ),
     );
   }
 
-  // -------- Load More Indicator --------
-  Widget _buildLoadMoreIndicator(bool bn) {
-    if (_isLoadingMore) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Center(
-          child: SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(
-              color: primaryMaroon,
-              strokeWidth: 2.5,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Center(
-        child: TextButton.icon(
-          onPressed: _loadMore,
-          icon: const Icon(Icons.refresh, size: 18),
-          label: Text(
-            bn ? 'আরো লোড করুন' : 'Load More',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          style: TextButton.styleFrom(foregroundColor: primaryMaroon),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // USER CARD — with distance chip
-  // ============================================================
-  Widget _buildUserCard(UserProfile user, bool bn) {
+  Widget _buildMobileUserCard(UserProfile user, bool bn) {
     final isBoosted = BoostService.isBoostActive(user.boostedUntil);
-
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
@@ -793,10 +578,9 @@ class _NearbyTabState extends State<NearbyTab> {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: primaryMaroon.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
+              color: primaryMaroon.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
         ],
       ),
       child: Material(
@@ -809,33 +593,25 @@ class _NearbyTabState extends State<NearbyTab> {
             padding: const EdgeInsets.all(10),
             child: Row(
               children: [
-                // Photo
                 Stack(
                   children: [
                     Container(
                       width: 76,
                       height: 76,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        color: lightMaroon,
-                      ),
+                          borderRadius: BorderRadius.circular(14),
+                          color: lightMaroon),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(14),
                         child: user.photoUrl.isNotEmpty
-                            ? Image.network(
-                                user.photoUrl,
+                            ? Image.network(user.photoUrl,
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.person,
-                                  size: 40,
-                                  color: primaryMaroon,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.person,
-                                size: 40,
-                                color: primaryMaroon,
-                              ),
+                                    Icons.person,
+                                    size: 40,
+                                    color: primaryMaroon))
+                            : const Icon(Icons.person,
+                                size: 40, color: primaryMaroon),
                       ),
                     ),
                     if (isBoosted)
@@ -844,37 +620,27 @@ class _NearbyTabState extends State<NearbyTab> {
                         left: 4,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [primaryGold, primaryMaroon],
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                              gradient: const LinearGradient(
+                                  colors: [primaryGold, primaryMaroon]),
+                              borderRadius: BorderRadius.circular(10)),
                           child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.bolt, color: Colors.white, size: 10),
-                              SizedBox(width: 2),
-                              Text(
-                                'Boost',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.bolt, color: Colors.white, size: 10),
+                                SizedBox(width: 2),
+                                Text('Boost',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold))
+                              ]),
                         ),
                       ),
                   ],
                 ),
                 const SizedBox(width: 12),
-
-                // Info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -882,67 +648,52 @@ class _NearbyTabState extends State<NearbyTab> {
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              user.name.isEmpty
-                                  ? (bn ? 'নাম নেই' : 'No name')
-                                  : user.name,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: mainText,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
+                              child: Text(
+                                  user.name.isEmpty
+                                      ? (bn ? 'নাম নেই' : 'No name')
+                                      : user.name,
+                                  style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: mainText),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis)),
                           if (user.age.isNotEmpty)
-                            Text(
-                              '• ${user.age}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: secondaryText,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            Text('• ${user.age}',
+                                style: const TextStyle(
+                                    fontSize: 14,
+                                    color: secondaryText,
+                                    fontWeight: FontWeight.w600)),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      // ✅ District + Distance chip
                       Row(
                         children: [
-                          const Icon(
-                            Icons.location_on,
-                            size: 13,
-                            color: secondaryText,
-                          ),
+                          const Icon(Icons.location_on,
+                              size: 13, color: secondaryText),
                           const SizedBox(width: 4),
                           Expanded(
-                            child: Text(
-                              user.district.isEmpty ? '—' : user.district,
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                color: secondaryText,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
+                              child: Text(
+                                  user.district.isEmpty ? '—' : user.district,
+                                  style: const TextStyle(
+                                      fontSize: 12.5, color: secondaryText),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis)),
                           if (_myLat != null && _myLng != null)
                             _buildDistanceChip(user, bn),
                         ],
                       ),
                       if (user.profession.isNotEmpty) ...[
                         const SizedBox(height: 3),
-                        _row(Icons.work_outline, user.profession, bn),
+                        _row(Icons.work_outline, user.profession)
                       ],
                       if (user.education.isNotEmpty) ...[
                         const SizedBox(height: 3),
-                        _row(Icons.school_outlined, user.education, bn),
+                        _row(Icons.school_outlined, user.education)
                       ],
                     ],
                   ),
                 ),
-
                 const Icon(Icons.chevron_right, color: secondaryText),
               ],
             ),
@@ -953,14 +704,377 @@ class _NearbyTabState extends State<NearbyTab> {
   }
 
   // ============================================================
-  // DISTANCE CHIP
+  // 💻 ২. ওয়েব বডি (Grid View)
   // ============================================================
+  Widget _buildWebBody(bool bn) {
+    if (_isLoading)
+      return const Center(
+          child: CircularProgressIndicator(color: primaryMaroon));
+    if (_errorMessage != null) return _buildError(bn);
+
+    final users = _filteredUsers;
+    final noLocation = _myLat == null || _myLng == null;
+
+    if (users.isEmpty) return _buildEmptyState(bn, noLocation);
+
+    final itemCount = users.length + (_hasMore ? 1 : 0);
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1200),
+        child: GridView.builder(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(24, 10, 24, 30),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3, // ওয়েবে এক লাইনে ৩টি কার্ড
+            crossAxisSpacing: 20,
+            mainAxisSpacing: 20,
+            childAspectRatio: 0.8, // কার্ডের সাইজ
+          ),
+          itemCount: itemCount,
+          itemBuilder: (context, i) {
+            if (i == users.length) return _buildLoadMoreIndicator(bn);
+            return _buildWebUserCard(users[i], bn);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWebUserCard(UserProfile user, bool bn) {
+    final isBoosted = BoostService.isBoostActive(user.boostedUntil);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 15,
+              offset: const Offset(0, 8))
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _openProfile(user),
+          hoverColor: primaryMaroon.withValues(alpha: 0.03),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ইমেজ
+              Expanded(
+                flex: 5,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRRect(
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(20)),
+                      child: user.photoUrl.isNotEmpty
+                          ? Image.network(user.photoUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _imgPlaceholder())
+                          : _imgPlaceholder(),
+                    ),
+                    // গ্রেডিয়েন্ট ওভারলে
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(20)),
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.center,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.7),
+                            Colors.transparent
+                          ],
+                        ),
+                      ),
+                    ),
+                    // নাম ও বয়স
+                    Positioned(
+                      bottom: 12,
+                      left: 12,
+                      right: 12,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              user.name.isEmpty
+                                  ? (bn ? 'নাম নেই' : 'No name')
+                                  : user.name,
+                              style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (user.age.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(10)),
+                              child: Text(user.age,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13)),
+                            ),
+                        ],
+                      ),
+                    ),
+                    // Boost Tag
+                    if (isBoosted)
+                      Positioned(
+                        top: 12,
+                        left: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                  colors: [primaryGold, primaryMaroon]),
+                              borderRadius: BorderRadius.circular(12)),
+                          child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.bolt, color: Colors.white, size: 14),
+                                SizedBox(width: 4),
+                                Text('Boost',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold))
+                              ]),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              // টেক্সট ডিটেইলস
+              Expanded(
+                flex: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.location_on,
+                                  size: 16, color: primaryMaroon),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                  child: Text(
+                                      user.district.isEmpty
+                                          ? '—'
+                                          : user.district,
+                                      style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          color: secondaryText),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis)),
+                              if (_myLat != null && _myLng != null)
+                                _buildDistanceChip(user, bn),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          if (user.profession.isNotEmpty)
+                            _webRow(Icons.work_outline, user.profession),
+                          if (user.profession.isNotEmpty)
+                            const SizedBox(height: 6),
+                          if (user.education.isNotEmpty)
+                            _webRow(Icons.school_outlined, user.education),
+                        ],
+                      ),
+                      // View Profile Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () => _openProfile(user),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: primaryMaroon,
+                            side: BorderSide(
+                                color: primaryMaroon.withValues(alpha: 0.3)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          child: Text(bn ? 'প্রোফাইল দেখুন' : 'View Profile',
+                              style: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _imgPlaceholder() {
+    return Container(
+      color: lightMaroon,
+      child: const Center(
+          child: Icon(Icons.person, size: 80, color: primaryMaroon)),
+    );
+  }
+
+  Widget _webRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: secondaryText),
+        const SizedBox(width: 8),
+        Expanded(
+            child: Text(text.isEmpty ? '—' : text,
+                style: const TextStyle(fontSize: 13, color: secondaryText),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis)),
+      ],
+    );
+  }
+
+  // ============================================================
+  // COMMON WIDGETS
+  // ============================================================
+
+  Widget _buildError(bool bn) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 60, color: primaryMaroon),
+            const SizedBox(height: 16),
+            Text(_errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16, color: mainText)),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => _loadUsers(reset: true),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryMaroon,
+                  foregroundColor: Colors.white),
+              child: Text(bn ? 'আবার চেষ্টা' : 'Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(bool bn, bool noLocation) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(30),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      noLocation
+                          ? Icons.location_off
+                          : (_searchQuery.isNotEmpty
+                              ? Icons.search_off
+                              : Icons.person_search),
+                      size: 80,
+                      color: primaryMaroon.withValues(alpha: 0.7),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      noLocation
+                          ? (bn ? 'Location চালু করুন' : 'Enable Location')
+                          : (_searchQuery.isNotEmpty
+                              ? (bn ? 'কিছু পাওয়া যায়নি' : 'No results found')
+                              : (bn
+                                  ? '২০ কিমি এর মধ্যে কেউ নেই'
+                                  : 'No one within 20 km')),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: mainText),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      noLocation
+                          ? (bn
+                              ? 'কাছের মানুষ দেখতে location permission দিন'
+                              : 'Grant location permission to see nearby people')
+                          : (bn
+                              ? 'অন্য জেলা বেছে নিন বা রিফ্রেশ করুন'
+                              : 'Try another district or refresh'),
+                      textAlign: TextAlign.center,
+                      style:
+                          const TextStyle(fontSize: 13, color: secondaryText),
+                    ),
+                    const SizedBox(height: 22),
+                    ElevatedButton.icon(
+                      onPressed: noLocation
+                          ? () async {
+                              final granted =
+                                  await LocationService.requestPermission();
+                              if (granted) {
+                                await LocationService.saveLocationToFirestore();
+                                _initData();
+                              }
+                            }
+                          : _pickDistrict,
+                      icon: Icon(
+                          noLocation ? Icons.my_location : Icons.swap_horiz),
+                      label: Text(noLocation
+                          ? (bn ? 'Location চালু করুন' : 'Enable Location')
+                          : (bn ? 'জেলা বদলান' : 'Change District')),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryMaroon,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildDistanceChip(UserProfile user, bool bn) {
     final lat = _getUserLat(user);
     final lng = _getUserLng(user);
-
     final km = LocationService.calculateDistance(_myLat, _myLng, lat, lng);
-
     if (km == null) return const SizedBox.shrink();
 
     return Container(
@@ -982,30 +1096,52 @@ class _NearbyTabState extends State<NearbyTab> {
                     ? '${km.toStringAsFixed(1)} কিমি'
                     : '${km.toStringAsFixed(1)}km'),
             style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: primaryMaroon,
-            ),
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: primaryMaroon),
           ),
         ],
       ),
     );
   }
 
-  Widget _row(IconData icon, String text, bool bn) {
+  Widget _row(IconData icon, String text) {
     return Row(
       children: [
         Icon(icon, size: 13, color: secondaryText),
         const SizedBox(width: 4),
         Expanded(
-          child: Text(
-            text.isEmpty ? '—' : text,
-            style: const TextStyle(fontSize: 12.5, color: secondaryText),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
+            child: Text(text.isEmpty ? '—' : text,
+                style: const TextStyle(fontSize: 12.5, color: secondaryText),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis)),
       ],
+    );
+  }
+
+  Widget _buildLoadMoreIndicator(bool bn) {
+    if (_isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+            child: SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                    color: primaryMaroon, strokeWidth: 2.5))),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: TextButton.icon(
+          onPressed: _loadMore,
+          icon: const Icon(Icons.refresh, size: 18),
+          label: Text(bn ? 'আরো লোড করুন' : 'Load More',
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          style: TextButton.styleFrom(foregroundColor: primaryMaroon),
+        ),
+      ),
     );
   }
 }
@@ -1046,124 +1182,114 @@ class _DistrictPickerSheetState extends State<_DistrictPickerSheet> {
       minChildSize: 0.5,
       maxChildSize: 0.95,
       builder: (_, scrollCtrl) {
-        return Material(
-          color: warmWhite,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 10, bottom: 6),
-                width: 44,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: secondaryText.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.location_city,
-                      color: primaryMaroon,
-                      size: 22,
+        // ওয়েবের জন্য একটি ConstrainedBox যুক্ত করা হলো যাতে পুরো স্ক্রিন জুড়ে না যায়
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Material(
+              color: warmWhite,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 6),
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                        color: secondaryText.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(3)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.location_city,
+                            color: primaryMaroon, size: 22),
+                        const SizedBox(width: 8),
+                        Text(bn ? 'জেলা নির্বাচন' : 'Select District',
+                            style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: deepMaroon)),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      bn ? 'জেলা নির্বাচন' : 'Select District',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: deepMaroon,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: TextField(
-                  controller: _controller,
-                  onChanged: (v) => setState(() => _query = v.trim()),
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: bn ? 'জেলা খুঁজুন' : 'Search district',
-                    hintStyle: const TextStyle(fontSize: 13),
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      color: primaryMaroon,
-                      size: 20,
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(
-                        color: primaryMaroon.withValues(alpha: 0.15),
-                        width: 1.2,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                        color: primaryMaroon,
-                        width: 1.6,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      controller: _controller,
+                      onChanged: (v) => setState(() => _query = v.trim()),
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: bn ? 'জেলা খুঁজুন' : 'Search district',
+                        hintStyle: const TextStyle(fontSize: 13),
+                        prefixIcon: const Icon(Icons.search,
+                            color: primaryMaroon, size: 20),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                        enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide(
+                                color: primaryMaroon.withValues(alpha: 0.15),
+                                width: 1.2)),
+                        focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                                color: primaryMaroon, width: 1.6)),
                       ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: list.isEmpty
-                    ? Center(
-                        child: Text(
-                          bn ? 'কোনো জেলা পাওয়া যায়নি' : 'No district found',
-                          style: const TextStyle(color: secondaryText),
-                        ),
-                      )
-                    : ListView.separated(
-                        controller: scrollCtrl,
-                        itemCount: list.length,
-                        separatorBuilder: (_, __) => Divider(
-                          height: 1,
-                          color: primaryMaroon.withValues(alpha: 0.08),
-                        ),
-                        itemBuilder: (_, i) {
-                          final d = list[i];
-                          final selected = d == widget.current;
-                          return Material(
-                            color: Colors.transparent,
-                            child: ListTile(
-                              onTap: () => Navigator.pop(context, d),
-                              leading: Icon(
-                                selected
-                                    ? Icons.radio_button_checked
-                                    : Icons.radio_button_off,
-                                color: selected
-                                    ? primaryMaroon
-                                    : secondaryText.withValues(alpha: 0.5),
-                                size: 20,
-                              ),
-                              title: Text(
-                                d,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: selected
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                  color: selected ? primaryMaroon : mainText,
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: list.isEmpty
+                        ? Center(
+                            child: Text(
+                                bn
+                                    ? 'কোনো জেলা পাওয়া যায়নি'
+                                    : 'No district found',
+                                style: const TextStyle(color: secondaryText)))
+                        : ListView.separated(
+                            controller: scrollCtrl,
+                            itemCount: list.length,
+                            separatorBuilder: (_, __) => Divider(
+                                height: 1,
+                                color: primaryMaroon.withValues(alpha: 0.08)),
+                            itemBuilder: (_, i) {
+                              final d = list[i];
+                              final selected = d == widget.current;
+                              return Material(
+                                color: Colors.transparent,
+                                child: ListTile(
+                                  onTap: () => Navigator.pop(context, d),
+                                  leading: Icon(
+                                    selected
+                                        ? Icons.radio_button_checked
+                                        : Icons.radio_button_off,
+                                    color: selected
+                                        ? primaryMaroon
+                                        : secondaryText.withValues(alpha: 0.5),
+                                    size: 20,
+                                  ),
+                                  title: Text(d,
+                                      style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: selected
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                          color: selected
+                                              ? primaryMaroon
+                                              : mainText)),
                                 ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },
