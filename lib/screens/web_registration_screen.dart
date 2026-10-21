@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/colors.dart';
+import 'login_screen.dart';
 
 class WebRegistrationScreen extends StatefulWidget {
   const WebRegistrationScreen({super.key});
@@ -306,7 +307,15 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
           Center(
             child: TextButton(
               onPressed: () {
-                Navigator.pop(context); // উদাহরণস্বরূপ লগইন পেজে ফেরত যাওয়া
+                // ✅ pop এর বদলে pushReplacement ব্যবহার করুন
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const LoginScreen(
+                        isBangla:
+                            true), // যেহেতু ওয়েব পেজটি বাংলায়, তাই true দেওয়া হলো
+                  ),
+                );
               },
               child: RichText(
                 text: TextSpan(
