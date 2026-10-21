@@ -62,7 +62,6 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
 
       case 'message':
         // Message notification → sender এর profile view
-        // (সেখান থেকে user "Message" button tap করে chat করতে পারবে)
         if (notif.fromUid.isNotEmpty) {
           await _openUserProfile(notif.fromUid);
         }
@@ -82,10 +81,8 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   // ============================================================
   Future<void> _openUserProfile(String uid) async {
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
 
       if (!doc.exists) {
         _showMessage(
@@ -202,42 +199,249 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
           ),
         ],
       ),
-      body: StreamBuilder<List<AppNotification>>(
-        stream: NotificationService.streamNotifications(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: primaryMaroon),
-            );
-          }
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth > 800;
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                bn ? 'লোড করা যায়নি' : 'Could not load',
-                style: const TextStyle(color: secondaryText),
-              ),
-            );
-          }
+          return StreamBuilder<List<AppNotification>>(
+            stream: NotificationService.streamNotifications(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: CircularProgressIndicator(color: primaryMaroon),
+                );
+              }
 
-          final list = snapshot.data ?? [];
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    bn ? 'লোড করা যায়নি' : 'Could not load',
+                    style: const TextStyle(color: secondaryText),
+                  ),
+                );
+              }
 
-          if (list.isEmpty) {
-            return _buildEmpty(bn);
-          }
+              final list = snapshot.data ?? [];
 
-          return RefreshIndicator(
-            color: primaryMaroon,
-            onRefresh: () async {
-              // Stream auto-refreshes
+              if (list.isEmpty) {
+                return _buildEmpty(bn);
+              }
+
+              // ✅ ওয়েব এবং মোবাইলের জন্য আলাদা লেআউট
+              if (isDesktop) {
+                return _buildWebLayout(list, bn);
+              } else {
+                return _buildMobileLayout(list, bn);
+              }
             },
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: list.length,
-              itemBuilder: (context, i) => _buildNotificationTile(list[i], bn),
+          );
+        },
+      ),
+    );
+  }
+
+  // ============================================================
+  // 📱 ১. মোবাইল লেআউট (হুবহু অক্ষত)
+  // ============================================================
+  Widget _buildMobileLayout(List<AppNotification> list, bool bn) {
+    return RefreshIndicator(
+      color: primaryMaroon,
+      onRefresh: () async {
+        // Stream auto-refreshes
+      },
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: list.length,
+        itemBuilder: (context, i) {
+          final notif = list[i];
+          return Dismissible(
+            key: Key(notif.id),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 20),
+              color: Colors.red,
+              child: const Icon(Icons.delete, color: Colors.white),
+            ),
+            onDismissed: (_) {
+              NotificationService.delete(notif.id);
+            },
+            child: Material(
+              color: notif.isRead
+                  ? Colors.transparent
+                  : lightMaroon.withValues(alpha: 0.35),
+              child: _buildNotificationContent(notif, bn),
             ),
           );
         },
+      ),
+    );
+  }
+
+  // ============================================================
+  // 💻 ২. ওয়েব লেআউট (প্রিমিয়াম কার্ড ভিউ)
+  // ============================================================
+  Widget _buildWebLayout(List<AppNotification> list, bool bn) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 850), // ম্যাক্স উইডথ
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // হেডার (ঐচ্ছিক)
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text(
+                    bn ? 'সাম্প্রতিক নোটিফিকেশন' : 'Recent Notifications',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: deepMaroon,
+                    ),
+                  ),
+                ),
+                const Divider(height: 1, thickness: 1),
+
+                // লিস্ট
+                ...list.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final notif = entry.value;
+
+                  return Column(
+                    children: [
+                      Material(
+                        color: notif.isRead
+                            ? Colors.transparent
+                            : lightMaroon.withValues(alpha: 0.15),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _buildNotificationContent(notif, bn),
+                            ),
+                            // ✅ ওয়েবের জন্য স্পেসিফিক ডিলিট বাটন
+                            Padding(
+                              padding: const EdgeInsets.only(right: 16.0),
+                              child: IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    color: Colors.redAccent),
+                                tooltip: bn ? 'মুছুন' : 'Delete',
+                                onPressed: () {
+                                  NotificationService.delete(notif.id);
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (index < list.length - 1) const Divider(height: 1),
+                    ],
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // COMMON CONTENT (Shared by both layouts)
+  // ============================================================
+  Widget _buildNotificationContent(AppNotification notif, bool bn) {
+    return InkWell(
+      onTap: () => _handleTap(notif),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Avatar
+            _buildAvatar(notif),
+            const SizedBox(width: 16),
+
+            // Content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          notif.title,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: notif.isRead
+                                ? FontWeight.w600
+                                : FontWeight.bold,
+                            color: mainText,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (!notif.isRead)
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Colors.blue,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    notif.body,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      color: secondaryText,
+                      height: 1.4,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Text(
+                        _timeAgo(notif.createdAt, bn),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: secondaryText.withValues(alpha: 0.7),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const Spacer(),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        size: 12,
+                        color: secondaryText.withValues(alpha: 0.4),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -288,113 +492,6 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // NOTIFICATION TILE
-  // ============================================================
-  Widget _buildNotificationTile(AppNotification notif, bool bn) {
-    return Dismissible(
-      key: Key(notif.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        color: Colors.red,
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      onDismissed: (_) {
-        NotificationService.delete(notif.id);
-      },
-      child: Material(
-        color: notif.isRead
-            ? Colors.transparent
-            : lightMaroon.withValues(alpha: 0.35),
-        child: InkWell(
-          onTap: () => _handleTap(notif),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Avatar
-                _buildAvatar(notif),
-
-                const SizedBox(width: 12),
-
-                // Content
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              notif.title,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: notif.isRead
-                                    ? FontWeight.w600
-                                    : FontWeight.bold,
-                                color: mainText,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          if (!notif.isRead)
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: Colors.blue,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        notif.body,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: secondaryText,
-                          height: 1.4,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Text(
-                            _timeAgo(notif.createdAt, bn),
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: secondaryText.withValues(alpha: 0.7),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const Spacer(),
-                          // Tap hint
-                          Icon(
-                            Icons.arrow_forward_ios,
-                            size: 12,
-                            color: secondaryText.withValues(alpha: 0.4),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );
