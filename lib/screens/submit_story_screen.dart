@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data'; // ✅ Uint8List এর জন্য
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
 import '../services/success_story_service.dart';
@@ -63,7 +65,9 @@ class _SubmitStoryScreenState extends State<SubmitStoryScreen> {
       setState(() => _isUploading = true);
 
       for (final file in picked) {
-        final url = await _uploadToCloudinary(File(file.path));
+        // ✅ XFile থেকে বাইটস রিড করা হচ্ছে (ওয়েব ও মোবাইল সাপোর্টের জন্য)
+        final bytes = await file.readAsBytes();
+        final url = await _uploadToCloudinary(bytes, file.name);
         if (url != null) {
           _photoUrls.add(url);
         }
@@ -75,18 +79,25 @@ class _SubmitStoryScreenState extends State<SubmitStoryScreen> {
     }
   }
 
-  Future<String?> _uploadToCloudinary(File file) async {
+  // ✅ ফাংশনটি মডিফাই করা হলো যাতে বাইটস দিয়ে আপলোড হয়
+  Future<String?> _uploadToCloudinary(Uint8List bytes, String fileName) async {
     try {
       final uri = Uri.parse(
         'https://api.cloudinary.com/v1_1/$_cloudName/image/upload',
       );
       final req = http.MultipartRequest('POST', uri)
         ..fields['upload_preset'] = _uploadPreset;
-      req.files.add(await http.MultipartFile.fromPath('file', file.path));
+
+      // ✅ fromPath এর বদলে fromBytes ব্যবহার করা হলো
+      req.files.add(http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: fileName,
+      ));
 
       final res = await req.send();
-      final bytes = await res.stream.toBytes();
-      final json = jsonDecode(String.fromCharCodes(bytes));
+      final responseBytes = await res.stream.toBytes();
+      final json = jsonDecode(String.fromCharCodes(responseBytes));
 
       if (res.statusCode == 200 || res.statusCode == 201) {
         return json['secure_url'] as String;
@@ -208,6 +219,9 @@ class _SubmitStoryScreenState extends State<SubmitStoryScreen> {
     );
   }
 
+  // ============================================================
+  // BUILD
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     final bn = widget.isBangla;
@@ -226,239 +240,274 @@ class _SubmitStoryScreenState extends State<SubmitStoryScreen> {
           ),
         ),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Container(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth > 800;
+
+          // ✅ মূল ফর্ম
+          Widget formContent = Form(
+            key: _formKey,
+            child: ListView(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF8B1E3F), Color(0xFF5E1128)],
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.15),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF8B1E3F), Color(0xFF5E1128)],
                     ),
-                    child: const Icon(
-                      Icons.favorite,
-                      color: primaryGold,
-                      size: 26,
-                    ),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.15),
+                        ),
+                        child: const Icon(
+                          Icons.favorite,
+                          color: primaryGold,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              bn
+                                  ? 'আপনার গল্প শেয়ার করুন'
+                                  : 'Share Your Story',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              bn
+                                  ? 'অন্যরাও অনুপ্রাণিত হবেন আপনার গল্পে'
+                                  : 'Inspire others with your journey',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildPhotoSection(bn),
+                const SizedBox(height: 16),
+                _buildField(
+                  _coupleCtrl,
+                  bn ? 'দম্পতির নাম *' : 'Couple Names *',
+                  hint: 'রাকিব ❤️ সাদিয়া',
+                  validator: true,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildField(
+                        _husbandCtrl,
+                        bn ? 'বরের নাম' : 'Husband',
+                        hint: 'রাকিব',
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildField(
+                        _wifeCtrl,
+                        bn ? 'কনের নাম' : 'Wife',
+                        hint: 'সাদিয়া',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: _pickDistrict,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 15,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: primaryMaroon.withValues(alpha: 0.2),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Row(
                       children: [
-                        Text(
-                          bn ? 'আপনার গল্প শেয়ার করুন' : 'Share Your Story',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
+                        const Icon(
+                          Icons.location_city,
+                          color: primaryMaroon,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _selectedDistrict ??
+                                (bn ? 'জেলা নির্বাচন' : 'Select district'),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: _selectedDistrict != null
+                                  ? mainText
+                                  : secondaryText,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          bn
-                              ? 'অন্যরাও অনুপ্রাণিত হবেন আপনার গল্পে'
-                              : 'Inspire others with your journey',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            fontSize: 11,
+                        const Icon(Icons.keyboard_arrow_down,
+                            color: primaryMaroon),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: _pickDate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 15,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: primaryMaroon.withValues(alpha: 0.2),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.calendar_today,
+                          color: primaryMaroon,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _marriageDate != null
+                                ? '${_marriageDate!.day}/${_marriageDate!.month}/${_marriageDate!.year}'
+                                : (bn ? 'বিয়ের তারিখ' : 'Marriage date'),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: _marriageDate != null
+                                  ? mainText
+                                  : secondaryText,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildPhotoSection(bn),
-            const SizedBox(height: 16),
-            _buildField(
-              _coupleCtrl,
-              bn ? 'দম্পতির নাম *' : 'Couple Names *',
-              hint: 'রাকিব ❤️ সাদিয়া',
-              validator: true,
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildField(
-                    _husbandCtrl,
-                    bn ? 'বরের নাম' : 'Husband',
-                    hint: 'রাকিব',
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _storyCtrl,
+                  maxLines: 6,
+                  validator: (v) => (v == null || v.trim().length < 20)
+                      ? (bn
+                          ? 'কমপক্ষে ২০ অক্ষর লিখুন'
+                          : 'At least 20 characters')
+                      : null,
+                  decoration: InputDecoration(
+                    labelText: bn ? 'তাদের গল্প *' : 'Their Story *',
+                    hintText: bn
+                        ? 'কিভাবে একে অপরকে খুঁজে পেয়েছেন...'
+                        : 'How they found each other...',
+                    hintStyle: const TextStyle(fontSize: 13),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: primaryMaroon,
+                        width: 1.6,
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildField(
-                    _wifeCtrl,
-                    bn ? 'কনের নাম' : 'Wife',
-                    hint: 'সাদিয়া',
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: (_isSubmitting || _isUploading) ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryMaroon,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.send, size: 18),
+                              const SizedBox(width: 8),
+                              Text(
+                                bn ? 'গল্প জমা দিন' : 'Submit Story',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                 ),
+                const SizedBox(height: 30),
               ],
             ),
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: _pickDistrict,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 15,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: primaryMaroon.withValues(alpha: 0.2),
-                    width: 1.2,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.location_city,
-                      color: primaryMaroon,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _selectedDistrict ??
-                            (bn ? 'জেলা নির্বাচন' : 'Select district'),
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: _selectedDistrict != null
-                              ? mainText
-                              : secondaryText,
-                        ),
-                      ),
-                    ),
-                    const Icon(Icons.keyboard_arrow_down, color: primaryMaroon),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: _pickDate,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 15,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: primaryMaroon.withValues(alpha: 0.2),
-                    width: 1.2,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.calendar_today,
-                      color: primaryMaroon,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _marriageDate != null
-                            ? '${_marriageDate!.day}/${_marriageDate!.month}/${_marriageDate!.year}'
-                            : (bn ? 'বিয়ের তারিখ' : 'Marriage date'),
-                        style: TextStyle(
-                          fontSize: 14,
-                          color:
-                              _marriageDate != null ? mainText : secondaryText,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _storyCtrl,
-              maxLines: 6,
-              validator: (v) => (v == null || v.trim().length < 20)
-                  ? (bn ? 'কমপক্ষে ২০ অক্ষর লিখুন' : 'At least 20 characters')
-                  : null,
-              decoration: InputDecoration(
-                labelText: bn ? 'তাদের গল্প *' : 'Their Story *',
-                hintText: bn
-                    ? 'কিভাবে একে অপরকে খুঁজে পেয়েছেন...'
-                    : 'How they found each other...',
-                hintStyle: const TextStyle(fontSize: 13),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                    color: primaryMaroon,
-                    width: 1.6,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 52,
-              child: ElevatedButton(
-                onPressed: (_isSubmitting || _isUploading) ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryMaroon,
-                  foregroundColor: Colors.white,
+          );
+
+          // ✅ ওয়েবে ফর্মটি সুন্দর দেখানোর জন্য সেন্টার করা হলো
+          if (isDesktop) {
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 800),
+                child: Card(
+                  elevation: 2,
+                  margin: const EdgeInsets.symmetric(vertical: 30),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: formContent,
                   ),
                 ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2.5,
-                        ),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.send, size: 18),
-                          const SizedBox(width: 8),
-                          Text(
-                            bn ? 'গল্প জমা দিন' : 'Submit Story',
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
               ),
-            ),
-            const SizedBox(height: 30),
-          ],
-        ),
+            );
+          }
+
+          return formContent;
+        },
       ),
     );
   }
@@ -683,7 +732,7 @@ class _SubmitStoryScreenState extends State<SubmitStoryScreen> {
     final picked = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent, // ✅ NEW
+      backgroundColor: Colors.transparent,
       builder: (_) => DraggableScrollableSheet(
         initialChildSize: 0.7,
         minChildSize: 0.5,
@@ -693,12 +742,11 @@ class _SubmitStoryScreenState extends State<SubmitStoryScreen> {
           borderRadius: const BorderRadius.vertical(
             top: Radius.circular(24),
           ),
-          clipBehavior: Clip.antiAlias, // ✅ NEW
+          clipBehavior: Clip.antiAlias,
           child: ListView.builder(
             controller: ctrl,
             itemCount: bdDistricts.length,
             itemBuilder: (_, i) => Material(
-              // ✅ NEW
               color: Colors.transparent,
               child: ListTile(
                 title: Text(bdDistricts[i]),

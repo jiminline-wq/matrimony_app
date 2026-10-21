@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../models/story.dart';
 import '../services/story_service.dart';
@@ -136,6 +137,12 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
         final v = VideoPlayerController.networkUrl(Uri.parse(story.mediaUrl));
         await v.initialize();
         await v.setLooping(false);
+
+        // ✅ ওয়েবে অটোপ্লে পলিসির কারণে সাউন্ড মিউট করে প্লে করা লাগতে পারে
+        if (kIsWeb) {
+          await v.setVolume(0);
+        }
+
         await v.play();
         _video = v;
         if (mounted) setState(() {});
@@ -294,11 +301,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       );
     }
 
-    final current = _flat[_index];
-    final myUid = FirebaseAuth.instance.currentUser?.uid;
-    final isMine = current.story.uid == myUid;
-
-    return Scaffold(
+    // ✅ মূল স্টোরি কন্টেন্ট
+    Widget mainContent = Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
         onLongPressStart: (_) => _pause(),
@@ -371,9 +375,9 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               right: 8,
               child: Row(
                 children: List.generate(
-                  current.user.stories.length,
+                  _flat[_index].user.stories.length,
                   (i) {
-                    final idxInUser = _indexInUser(current.user);
+                    final idxInUser = _indexInUser(_flat[_index].user);
                     return Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -398,7 +402,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               child: Row(
                 children: [
                   ClipOval(
-                    child: current.user.userPhoto.isEmpty
+                    child: _flat[_index].user.userPhoto.isEmpty
                         ? Container(
                             width: 36,
                             height: 36,
@@ -406,7 +410,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                             child: const Icon(Icons.person,
                                 color: Colors.white, size: 20))
                         : CachedNetworkImage(
-                            imageUrl: current.user.userPhoto,
+                            imageUrl: _flat[_index].user.userPhoto,
                             width: 36,
                             height: 36,
                             fit: BoxFit.cover),
@@ -417,7 +421,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          current.user.userName,
+                          _flat[_index].user.userName,
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -425,14 +429,15 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                           ),
                         ),
                         Text(
-                          _timeAgo(current.story.createdAt),
+                          _timeAgo(_flat[_index].story.createdAt),
                           style: const TextStyle(
                               color: Colors.white70, fontSize: 11),
                         ),
                       ],
                     ),
                   ),
-                  if (isMine)
+                  if (_flat[_index].story.uid ==
+                      FirebaseAuth.instance.currentUser?.uid)
                     IconButton(
                       icon: const Icon(Icons.delete,
                           color: Colors.white, size: 22),
@@ -447,10 +452,13 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
             ),
 
             // ================= Caption =================
-            if (current.story.caption != null &&
-                current.story.caption!.isNotEmpty)
+            if (_flat[_index].story.caption != null &&
+                _flat[_index].story.caption!.isNotEmpty)
               Positioned(
-                bottom: isMine ? 90 : 160, // ✅ অ্যাডের জন্য একটু উপরে সরানো হলো
+                bottom: (_flat[_index].story.uid ==
+                        FirebaseAuth.instance.currentUser?.uid)
+                    ? 90
+                    : 160, // ✅ অ্যাডের জন্য একটু উপরে সরানো হলো
                 left: 16,
                 right: 16,
                 child: Container(
@@ -461,7 +469,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    current.story.caption!,
+                    _flat[_index].story.caption!,
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                     textAlign: TextAlign.center,
                   ),
@@ -498,7 +506,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               ),
 
             // ================= Reaction bar =================
-            if (!isMine)
+            if (_flat[_index].story.uid !=
+                FirebaseAuth.instance.currentUser?.uid)
               Positioned(
                 left: 16,
                 right: 16,
@@ -509,21 +518,41 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                 child: _buildReactionBar(),
               ),
 
-            // ================= Banner Ad =================
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: SafeArea(
-                child: BannerAdWidget(
-                  placementId: AdConfig.placementStoryDetails,
+            // ================= Banner Ad (শুধু মোবাইলে) =================
+            if (!kIsWeb)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: const SafeArea(
+                  child: BannerAdWidget(
+                    placementId: AdConfig.placementStoryDetails,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
     );
+
+    // ✅ ওয়েবের জন্য ফোন সিমুলেটর লুক (মোবাইল অক্ষত)
+    if (kIsWeb) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF121212), // ডার্ক গ্রে ব্যাকগ্রাউন্ড
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 450, maxHeight: 850),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: mainContent,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // মোবাইলে আগের মতোই ফুল স্ক্রিন
+    return mainContent;
   }
 
   // ============================================================
