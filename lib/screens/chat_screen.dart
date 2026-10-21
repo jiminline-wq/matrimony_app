@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data'; // ✅ Uint8List এর জন্য
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +13,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -85,8 +87,6 @@ class _ChatScreenState extends State<ChatScreen> {
   static const String cloudinaryUploadPreset = 'jibon_sathi_chat';
 
   static const Color _chatBg = Color(0xFFECE5DD);
-  static const Color _myBubble = Color(0xFF075E54);
-  static const Color _myBubbleAlt = Color(0xFF8B1E3F);
 
   @override
   void initState() {
@@ -619,6 +619,12 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _startRecording() async {
+    if (kIsWeb) {
+      _showError(widget.isBangla
+          ? 'ওয়েবে ভয়েস রেকর্ডিং সাপোর্ট করে না'
+          : 'Voice recording not supported on web');
+      return;
+    }
     final started = await VoiceRecorderService.start();
     if (!started) {
       if (mounted) {
@@ -726,8 +732,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() => _isSending = true);
     try {
-      final file = File(picked.path);
-      final url = await _uploadToCloudinary(file, 'image');
+      final bytes = await picked.readAsBytes();
+      final url = await _uploadToCloudinary(bytes, picked.name, 'image');
 
       if (url == null || url.trim().isEmpty) {
         if (mounted) {
@@ -763,8 +769,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() => _isSending = true);
     try {
-      final file = File(picked.path);
-      final url = await _uploadToCloudinary(file, 'video');
+      final bytes = await picked.readAsBytes();
+      final url = await _uploadToCloudinary(bytes, picked.name, 'video');
 
       if (url == null || url.trim().isEmpty) {
         if (mounted) {
@@ -791,11 +797,12 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _pickAndSendFile() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.any);
+    // ✅ ওয়েবে file picker থেকে ডেটা নিতে withData: true ব্যবহার করতে হয়
+    final result = await FilePicker.platform
+        .pickFiles(type: FileType.any, withData: kIsWeb);
     if (result == null || result.files.isEmpty) return;
 
     final pickedFile = result.files.first;
-    if (pickedFile.path == null) return;
 
     if (pickedFile.size > 10 * 1024 * 1024) {
       if (!mounted) return;
@@ -809,8 +816,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
     setState(() => _isSending = true);
     try {
-      final file = File(pickedFile.path!);
-      final url = await _uploadToCloudinary(file, 'raw');
+      Uint8List bytes;
+      if (kIsWeb) {
+        bytes = pickedFile.bytes!;
+      } else {
+        bytes = await File(pickedFile.path!).readAsBytes();
+      }
+
+      final url = await _uploadToCloudinary(bytes, pickedFile.name, 'raw');
 
       if (url == null || url.trim().isEmpty) {
         if (mounted) {
@@ -856,17 +869,26 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Future<String?> _uploadToCloudinary(File file, String type) async {
+  // ✅ আপডেট করা Cloudinary আপলোড ফাংশন (যা ওয়েব এবং মোবাইল উভয় জায়গায় কাজ করবে)
+  Future<String?> _uploadToCloudinary(
+      Uint8List bytes, String fileName, String type) async {
     try {
       final uri = Uri.parse(
         'https://api.cloudinary.com/v1_1/$cloudinaryCloudName/$type/upload',
       );
       final request = http.MultipartRequest('POST', uri)
         ..fields['upload_preset'] = cloudinaryUploadPreset;
-      request.files.add(await http.MultipartFile.fromPath('file', file.path));
+
+      request.files.add(http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: fileName,
+      ));
+
       final response = await request.send();
-      final bytes = await response.stream.toBytes();
-      final json = jsonDecode(String.fromCharCodes(bytes));
+      final responseBytes = await response.stream.toBytes();
+      final json = jsonDecode(String.fromCharCodes(responseBytes));
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         return json['secure_url'] as String;
       }
@@ -987,27 +1009,54 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       backgroundColor: _chatBg,
       appBar: _buildAppBar(bn),
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              Expanded(child: _buildMessageList(bn, myUid)),
-              if (_isSending) _buildSendingBar(bn),
-              if (_replyTo != null) _buildReplyPreview(bn),
-              _buildInputBar(bn),
-              // ✅ ইনপুট বারের ঠিক নিচে ব্যানার অ্যাড বসানো হলো
-              const SafeArea(
-                top: false,
-                child: BannerAdWidget(
-                  placementId:
-                      AdConfig.placementChatList, // অথবা placementChatList
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth > 800;
+
+          return Center(
+            child: ConstrainedBox(
+              constraints:
+                  BoxConstraints(maxWidth: isDesktop ? 900 : double.infinity),
+              child: Container(
+                // ওয়েবে চ্যাট বক্সটিকে সুন্দর দেখানোর জন্য বর্ডার এবং শ্যাডো
+                decoration: isDesktop
+                    ? BoxDecoration(
+                        color: _chatBg,
+                        border: Border.all(color: Colors.grey.shade300),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 20,
+                          )
+                        ],
+                      )
+                    : null,
+                child: Stack(
+                  children: [
+                    Column(
+                      children: [
+                        Expanded(child: _buildMessageList(bn, myUid)),
+                        if (_isSending) _buildSendingBar(bn),
+                        if (_replyTo != null) _buildReplyPreview(bn),
+                        _buildInputBar(bn),
+                        // ✅ AdMob শুধু মোবাইলে
+                        if (!kIsWeb)
+                          const SafeArea(
+                            top: false,
+                            child: BannerAdWidget(
+                              placementId: AdConfig.placementChatList,
+                            ),
+                          ),
+                      ],
+                    ),
+                    // ✅ রেকর্ডিং ওভারলে (উপরে ভেসে থাকবে)
+                    if (_isRecording) _buildRecordingOverlay(bn),
+                  ],
                 ),
               ),
-            ],
-          ),
-          // ✅ রেকর্ডিং ওভারলে (উপরে ভেসে থাকবে)
-          if (_isRecording) _buildRecordingOverlay(bn),
-        ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -1452,23 +1501,30 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
             const SizedBox(width: 6),
             GestureDetector(
+              // ✅ ওয়েবে শুধু সেন্ড বাটন দেখাবে, মোবাইলে আগের মতো সেন্ড/মাইক দেখাবে
               onTap: _showSendButton
                   ? _sendTextMessage
-                  : (_isRecording ? _stopAndSendRecording : _startRecording),
+                  : (!kIsWeb
+                      ? (_isRecording ? _stopAndSendRecording : _startRecording)
+                      : null),
               child: Container(
                 width: 48,
                 height: 48,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: primaryMaroon,
+                  color: (_showSendButton || !kIsWeb)
+                      ? primaryMaroon
+                      : Colors.transparent,
                 ),
-                child: Icon(
-                  _showSendButton
-                      ? Icons.send_rounded
-                      : (_isRecording ? Icons.stop : Icons.mic),
-                  color: Colors.white,
-                  size: 22,
-                ),
+                child: !kIsWeb || _showSendButton
+                    ? Icon(
+                        _showSendButton
+                            ? Icons.send_rounded
+                            : (_isRecording ? Icons.stop : Icons.mic),
+                        color: Colors.white,
+                        size: 22,
+                      )
+                    : null,
               ),
             ),
           ],
