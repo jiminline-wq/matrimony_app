@@ -6,8 +6,6 @@ import '../theme/colors.dart';
 import '../models/user_profile.dart';
 import 'profile_details_screen.dart';
 
-// এখানে পুরনো ProfileSetupScreen + _ProfileSetupScreenState paste করুন
-
 // ============================================================
 // PROFILE SETUP SCREEN
 // ============================================================
@@ -150,23 +148,18 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   // ============================================================
 
   final List<String> educationDegrees = [
-    // Secondary
     'SSC',
     'Dakhil',
     'O-Level',
     'SSC Vocational',
     'Secondary Equivalent',
     'Other Secondary',
-
-    // Higher Secondary
     'HSC',
     'Alim',
     'A-Level',
     'HSC Vocational',
     'Higher Secondary Equivalent',
     'Other Higher Secondary',
-
-    // Diploma
     'Diploma in Engineering',
     'Diploma in Medical',
     'Diploma in Nursing',
@@ -175,8 +168,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     'Diploma in Textile',
     'Diploma in Architecture',
     'Other Diploma',
-
-    // Bachelor
     'BSc',
     'BSc in Engineering',
     'BA',
@@ -195,8 +186,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     'BArch',
     'Bachelor Equivalent',
     'Other Bachelor',
-
-    // Master
     'MSc',
     'MA',
     'MBA',
@@ -212,8 +201,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     'MSc in Computer Science',
     'Master Equivalent',
     'Other Master',
-
-    // Research
     'MPhil',
     'PhD',
     'Post-Doctoral',
@@ -286,12 +273,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   @override
   void initState() {
     super.initState();
-
     _createEducationControllers(0);
   }
 
   // ============================================================
-  // CREATE EDUCATION CONTROLLERS
+  // CREATE CONTROLLERS
   // ============================================================
 
   void _createEducationControllers(int index) {
@@ -299,10 +285,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     educationInstitutionControllers[index] = TextEditingController();
     educationYearControllers[index] = TextEditingController();
   }
-
-  // ============================================================
-  // CREATE JOB CONTROLLERS
-  // ============================================================
 
   void _createJobControllers(int index) {
     jobDesignationControllers[index] = TextEditingController();
@@ -313,10 +295,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     jobEndYearControllers[index] = TextEditingController();
     jobDescriptionControllers[index] = TextEditingController();
   }
-
-  // ============================================================
-  // CREATE BUSINESS CONTROLLERS
-  // ============================================================
 
   void _createBusinessControllers(int index) {
     businessNameControllers[index] = TextEditingController();
@@ -331,59 +309,45 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   @override
   void dispose() {
     ageController.dispose();
-
-    for (final controller in educationSubjectControllers.values) {
-      controller.dispose();
+    for (final c in educationSubjectControllers.values) {
+      c.dispose();
     }
-
-    for (final controller in educationInstitutionControllers.values) {
-      controller.dispose();
+    for (final c in educationInstitutionControllers.values) {
+      c.dispose();
     }
-
-    for (final controller in educationYearControllers.values) {
-      controller.dispose();
+    for (final c in educationYearControllers.values) {
+      c.dispose();
     }
-
-    for (final controller in jobDesignationControllers.values) {
-      controller.dispose();
+    for (final c in jobDesignationControllers.values) {
+      c.dispose();
     }
-
-    for (final controller in jobOrganizationControllers.values) {
-      controller.dispose();
+    for (final c in jobOrganizationControllers.values) {
+      c.dispose();
     }
-
-    for (final controller in jobDepartmentControllers.values) {
-      controller.dispose();
+    for (final c in jobDepartmentControllers.values) {
+      c.dispose();
     }
-
-    for (final controller in jobLocationControllers.values) {
-      controller.dispose();
+    for (final c in jobLocationControllers.values) {
+      c.dispose();
     }
-
-    for (final controller in jobStartYearControllers.values) {
-      controller.dispose();
+    for (final c in jobStartYearControllers.values) {
+      c.dispose();
     }
-
-    for (final controller in jobEndYearControllers.values) {
-      controller.dispose();
+    for (final c in jobEndYearControllers.values) {
+      c.dispose();
     }
-
-    for (final controller in jobDescriptionControllers.values) {
-      controller.dispose();
+    for (final c in jobDescriptionControllers.values) {
+      c.dispose();
     }
-
-    for (final controller in businessNameControllers.values) {
-      controller.dispose();
+    for (final c in businessNameControllers.values) {
+      c.dispose();
     }
-
-    for (final controller in businessTypeControllers.values) {
-      controller.dispose();
+    for (final c in businessTypeControllers.values) {
+      c.dispose();
     }
-
-    for (final controller in businessCategoryControllers.values) {
-      controller.dispose();
+    for (final c in businessCategoryControllers.values) {
+      c.dispose();
     }
-
     super.dispose();
   }
 
@@ -399,10 +363,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     return InputDecoration(
       labelText: label,
       hintText: hint,
-      prefixIcon: Icon(
-        icon,
-        color: primaryMaroon,
-      ),
+      prefixIcon: Icon(icon, color: primaryMaroon),
       filled: true,
       fillColor: Colors.white,
       border: OutlineInputBorder(
@@ -411,109 +372,64 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(
-          color: Color(0xFFE4DCEA),
-        ),
+        borderSide: const BorderSide(color: Color(0xFFE4DCEA)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(
-          color: primaryMaroon,
-          width: 1.5,
-        ),
+        borderSide: const BorderSide(color: primaryMaroon, width: 1.5),
       ),
     );
   }
 
   // ============================================================
-  // EDUCATION HELPERS
+  // HELPERS
   // ============================================================
 
-  bool isSchoolLevel(String degree) {
-    return [
-      'SSC',
-      'Dakhil',
-      'O-Level',
-      'SSC Vocational',
-      'Secondary Equivalent',
-      'Other Secondary',
-    ].contains(degree);
-  }
-
-  bool isHigherSecondary(String degree) {
-    return [
-      'HSC',
-      'Alim',
-      'A-Level',
-      'HSC Vocational',
-      'Higher Secondary Equivalent',
-      'Other Higher Secondary',
-    ].contains(degree);
-  }
-
-  bool requiresBoard(String degree) {
-    return isSchoolLevel(degree) || isHigherSecondary(degree);
-  }
-
-  // ============================================================
-  // ADD EDUCATION
-  // ============================================================
+  bool isSchoolLevel(String degree) => [
+        'SSC',
+        'Dakhil',
+        'O-Level',
+        'SSC Vocational',
+        'Secondary Equivalent',
+        'Other Secondary'
+      ].contains(degree);
+  bool isHigherSecondary(String degree) => [
+        'HSC',
+        'Alim',
+        'A-Level',
+        'HSC Vocational',
+        'Higher Secondary Equivalent',
+        'Other Higher Secondary'
+      ].contains(degree);
+  bool requiresBoard(String degree) =>
+      isSchoolLevel(degree) || isHigherSecondary(degree);
 
   void addEducation() {
     setState(() {
       final index = educationEntries.length;
-
-      educationEntries.add(
-        EducationEntry(),
-      );
-
+      educationEntries.add(EducationEntry());
       _createEducationControllers(index);
     });
   }
 
-  // ============================================================
-  // REMOVE EDUCATION
-  // ============================================================
-
   void removeEducation(int index) {
-    if (educationEntries.length == 1) {
-      return;
-    }
-
+    if (educationEntries.length == 1) return;
     educationSubjectControllers[index]?.dispose();
     educationInstitutionControllers[index]?.dispose();
     educationYearControllers[index]?.dispose();
-
     educationSubjectControllers.remove(index);
     educationInstitutionControllers.remove(index);
     educationYearControllers.remove(index);
-
-    setState(() {
-      educationEntries.removeAt(index);
-    });
+    setState(() => educationEntries.removeAt(index));
   }
-
-  // ============================================================
-  // ADD CURRENT JOB
-  // ============================================================
 
   void addCurrentJob() {
     final index = currentJobs.length;
-
     setState(() {
-      currentJobs.add(
-        ProfessionEntry(
-          isCurrent: true,
-        ),
-      );
-
+      currentJobs.add(ProfessionEntry(isCurrent: true));
       _createJobControllers(index);
     });
   }
-
-  // ============================================================
-  // REMOVE CURRENT JOB
-  // ============================================================
 
   void removeCurrentJob(int index) {
     jobDesignationControllers[index]?.dispose();
@@ -523,37 +439,19 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     jobStartYearControllers[index]?.dispose();
     jobEndYearControllers[index]?.dispose();
     jobDescriptionControllers[index]?.dispose();
-
-    setState(() {
-      currentJobs.removeAt(index);
-    });
+    setState(() => currentJobs.removeAt(index));
   }
-
-  // ============================================================
-  // ADD PREVIOUS JOB
-  // ============================================================
 
   void addPreviousJob() {
     final index = previousJobs.length;
-
     setState(() {
-      previousJobs.add(
-        ProfessionEntry(
-          isCurrent: false,
-        ),
-      );
-
+      previousJobs.add(ProfessionEntry(isCurrent: false));
       _createJobControllers(index + 1000);
     });
   }
 
-  // ============================================================
-  // REMOVE PREVIOUS JOB
-  // ============================================================
-
   void removePreviousJob(int index) {
     final controllerIndex = index + 1000;
-
     jobDesignationControllers[controllerIndex]?.dispose();
     jobOrganizationControllers[controllerIndex]?.dispose();
     jobDepartmentControllers[controllerIndex]?.dispose();
@@ -561,155 +459,81 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     jobStartYearControllers[controllerIndex]?.dispose();
     jobEndYearControllers[controllerIndex]?.dispose();
     jobDescriptionControllers[controllerIndex]?.dispose();
-
-    setState(() {
-      previousJobs.removeAt(index);
-    });
+    setState(() => previousJobs.removeAt(index));
   }
-
-  // ============================================================
-  // SYNC EDUCATION DATA
-  // ============================================================
 
   void syncEducationData() {
     for (int i = 0; i < educationEntries.length; i++) {
       final entry = educationEntries[i];
-
       entry.subject = educationSubjectControllers[i]?.text.trim() ?? '';
-
       entry.institution = educationInstitutionControllers[i]?.text.trim() ?? '';
-
       entry.year = educationYearControllers[i]?.text.trim() ?? '';
     }
   }
 
-  // ============================================================
-  // SYNC JOB DATA
-  // ============================================================
-
   void syncJobData() {
     for (int i = 0; i < currentJobs.length; i++) {
       final job = currentJobs[i];
-
       job.designation = jobDesignationControllers[i]?.text.trim() ?? '';
-
       job.organization = jobOrganizationControllers[i]?.text.trim() ?? '';
-
       job.department = jobDepartmentControllers[i]?.text.trim() ?? '';
-
       job.location = jobLocationControllers[i]?.text.trim() ?? '';
-
       job.startYear = jobStartYearControllers[i]?.text.trim() ?? '';
-
       job.endYear = jobEndYearControllers[i]?.text.trim() ?? '';
-
       job.description = jobDescriptionControllers[i]?.text.trim() ?? '';
     }
 
     for (int i = 0; i < previousJobs.length; i++) {
       final controllerIndex = i + 1000;
-
       final job = previousJobs[i];
-
       job.designation =
           jobDesignationControllers[controllerIndex]?.text.trim() ?? '';
-
       job.organization =
           jobOrganizationControllers[controllerIndex]?.text.trim() ?? '';
-
       job.department =
           jobDepartmentControllers[controllerIndex]?.text.trim() ?? '';
-
       job.location = jobLocationControllers[controllerIndex]?.text.trim() ?? '';
-
       job.startYear =
           jobStartYearControllers[controllerIndex]?.text.trim() ?? '';
-
       job.endYear = jobEndYearControllers[controllerIndex]?.text.trim() ?? '';
-
       job.description =
           jobDescriptionControllers[controllerIndex]?.text.trim() ?? '';
     }
   }
 
-  // ============================================================
-  // EDUCATION SUMMARY
-  // ============================================================
-
   String getEducationSummary() {
     syncEducationData();
-
     final validEntries = educationEntries
-        .where(
-          (e) => e.degree.trim().isNotEmpty || e.institution.trim().isNotEmpty,
-        )
+        .where((e) =>
+            e.degree.trim().isNotEmpty || e.institution.trim().isNotEmpty)
         .toList();
-
-    if (validEntries.isEmpty) {
-      return 'Not specified';
-    }
-
-    return validEntries.map(
-      (e) {
-        String text = e.degree;
-
-        if (e.subject.isNotEmpty) {
-          text += ' - ${e.subject}';
-        }
-
-        if (e.institution.isNotEmpty) {
-          text += ' - ${e.institution}';
-        }
-
-        if (e.year.isNotEmpty) {
-          text +=
-              e.currentlyStudying ? ' (Expected ${e.year})' : ' (${e.year})';
-        }
-
-        return text;
-      },
-    ).join('\n');
+    if (validEntries.isEmpty) return 'Not specified';
+    return validEntries.map((e) {
+      String text = e.degree;
+      if (e.subject.isNotEmpty) text += ' - ${e.subject}';
+      if (e.institution.isNotEmpty) text += ' - ${e.institution}';
+      if (e.year.isNotEmpty)
+        text += e.currentlyStudying ? ' (Expected ${e.year})' : ' (${e.year})';
+      return text;
+    }).join('\n');
   }
-
-  // ============================================================
-  // PROFESSION SUMMARY
-  // ============================================================
 
   String getProfessionSummary() {
     syncJobData();
-
     final List<String> result = [];
-
-    if (currentStatus != null) {
-      result.add(currentStatus!);
-    }
-
+    if (currentStatus != null) result.add(currentStatus!);
     for (final job in currentJobs) {
       if (job.type.isNotEmpty) {
         String text = job.type;
-
-        if (job.designation.isNotEmpty) {
-          text += ' - ${job.designation}';
-        }
-
-        if (job.organization.isNotEmpty) {
-          text += ' - ${job.organization}';
-        }
-
+        if (job.designation.isNotEmpty) text += ' - ${job.designation}';
+        if (job.organization.isNotEmpty) text += ' - ${job.organization}';
         result.add(text);
       }
     }
-
-    if (result.isEmpty) {
-      return 'Not specified';
-    }
-
+    if (result.isEmpty) return 'Not specified';
     return result.join('\n');
   }
 
-  // ============================================================
-  // SAVE PROFILE
-  // ============================================================
   Future<void> saveProfile() async {
     if (!formKey.currentState!.validate()) return;
 
@@ -736,7 +560,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     syncEducationData();
     syncJobData();
 
-    // ✅ Firestore-এ additional info save
     try {
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
         'age': ageController.text.trim(),
@@ -803,8 +626,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       ),
     );
   }
+
   // ============================================================
-  // DROPDOWN
+  // REUSABLE WIDGETS
   // ============================================================
 
   Widget buildDropdown<T>({
@@ -817,54 +641,32 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     return DropdownButtonFormField<T>(
       initialValue: value,
       isExpanded: true,
-      decoration: fieldDecoration(
-        label: label,
-        icon: icon,
-      ),
+      decoration: fieldDecoration(label: label, icon: icon),
       items: items
-          .map(
-            (item) => DropdownMenuItem<T>(
-              value: item,
-              child: Text(
-                item.toString(),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          )
+          .map((item) => DropdownMenuItem<T>(
+                value: item,
+                child: Text(item.toString(), overflow: TextOverflow.ellipsis),
+              ))
           .toList(),
       onChanged: onChanged,
-      validator: (value) {
-        if (value == null) {
-          return 'Required';
-        }
-
-        return null;
-      },
+      validator: (value) => value == null ? 'Required' : null,
     );
   }
 
-  // ============================================================
-  // EDUCATION CARD
-  // ============================================================
-
   Widget buildEducationCard(int index) {
     final entry = educationEntries[index];
-
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: const Color(0xFFE4DCEA),
-        ),
+        border: Border.all(color: const Color(0xFFE4DCEA)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
         ],
       ),
       child: Column(
@@ -876,32 +678,23 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: lightMaroon,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.school_rounded,
-                  color: primaryMaroon,
-                ),
+                    color: lightMaroon,
+                    borderRadius: BorderRadius.circular(12)),
+                child: const Icon(Icons.school_rounded, color: primaryMaroon),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  'Education ${index + 1}',
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: mainText,
-                  ),
-                ),
+                child: Text('Education ${index + 1}',
+                    style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: mainText)),
               ),
               if (educationEntries.length > 1)
                 IconButton(
                   onPressed: () => removeEducation(index),
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    color: Colors.redAccent,
-                  ),
+                  icon:
+                      const Icon(Icons.delete_outline, color: Colors.redAccent),
                 ),
             ],
           ),
@@ -914,10 +707,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             onChanged: (value) {
               setState(() {
                 entry.degree = value ?? '';
-
-                if (!requiresBoard(entry.degree)) {
-                  entry.board = '';
-                }
+                if (!requiresBoard(entry.degree)) entry.board = '';
               });
             },
           ),
@@ -928,30 +718,24 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               icon: Icons.account_balance_outlined,
               value: entry.board.isEmpty ? null : entry.board,
               items: educationBoards,
-              onChanged: (value) {
-                setState(() {
-                  entry.board = value ?? '';
-                });
-              },
+              onChanged: (value) => setState(() => entry.board = value ?? ''),
             ),
             const SizedBox(height: 14),
           ],
           TextFormField(
             controller: educationSubjectControllers[index],
             decoration: fieldDecoration(
-              label: 'Subject / Major / Department',
-              icon: Icons.menu_book_outlined,
-              hint: 'e.g. Computer Science & Technology',
-            ),
+                label: 'Subject / Major / Department',
+                icon: Icons.menu_book_outlined,
+                hint: 'e.g. Computer Science & Technology'),
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: educationInstitutionControllers[index],
             decoration: fieldDecoration(
-              label: 'Institution',
-              icon: Icons.account_balance,
-              hint: 'School / College / University',
-            ),
+                label: 'Institution',
+                icon: Icons.account_balance,
+                hint: 'School / College / University'),
           ),
           const SizedBox(height: 14),
           Row(
@@ -959,11 +743,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               Checkbox(
                 value: entry.currentlyStudying,
                 activeColor: primaryMaroon,
-                onChanged: (value) {
-                  setState(() {
-                    entry.currentlyStudying = value ?? false;
-                  });
-                },
+                onChanged: (value) =>
+                    setState(() => entry.currentlyStudying = value ?? false),
               ),
               Expanded(
                 child: Text(
@@ -971,9 +752,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                       ? 'আমি বর্তমানে এখানে পড়াশোনা করছি'
                       : 'I am currently studying here',
                   style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: mainText,
-                  ),
+                      fontWeight: FontWeight.w600, color: mainText),
                 ),
               ),
             ],
@@ -989,49 +768,33 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               icon: Icons.calendar_month_outlined,
               hint: 'e.g. 2027',
             ),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Required';
-              }
-
-              return null;
-            },
+            validator: (value) =>
+                value == null || value.trim().isEmpty ? 'Required' : null,
           ),
         ],
       ),
     );
   }
 
-  // ============================================================
-  // JOB CARD
-  // ============================================================
-
-  Widget buildJobCard({
-    required int index,
-    required ProfessionEntry job,
-    required bool isCurrent,
-  }) {
+  Widget buildJobCard(
+      {required int index,
+      required ProfessionEntry job,
+      required bool isCurrent}) {
     final controllerIndex = isCurrent ? index : index + 1000;
-
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: const Color(0xFFE4DCEA),
-        ),
+        border: Border.all(color: const Color(0xFFE4DCEA)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.work_outline,
-                color: primaryMaroon,
-              ),
+              const Icon(Icons.work_outline, color: primaryMaroon),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -1039,24 +802,16 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                       ? 'Current Job ${index + 1}'
                       : 'Previous Job ${index + 1}',
                   style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: mainText,
-                  ),
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: mainText),
                 ),
               ),
               IconButton(
-                onPressed: () {
-                  if (isCurrent) {
-                    removeCurrentJob(index);
-                  } else {
-                    removePreviousJob(index);
-                  }
-                },
-                icon: const Icon(
-                  Icons.delete_outline,
-                  color: Colors.redAccent,
-                ),
+                onPressed: () => isCurrent
+                    ? removeCurrentJob(index)
+                    : removePreviousJob(index),
+                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
               ),
             ],
           ),
@@ -1074,49 +829,41 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               'Banker',
               'Lawyer',
               'Freelancer',
-              'Other',
+              'Other'
             ],
-            onChanged: (value) {
-              setState(() {
-                job.type = value ?? '';
-              });
-            },
+            onChanged: (value) => setState(() => job.type = value ?? ''),
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: jobDesignationControllers[controllerIndex],
             decoration: fieldDecoration(
-              label: 'Designation',
-              icon: Icons.person_outline,
-              hint: 'e.g. Instructor',
-            ),
+                label: 'Designation',
+                icon: Icons.person_outline,
+                hint: 'e.g. Instructor'),
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: jobOrganizationControllers[controllerIndex],
             decoration: fieldDecoration(
-              label: 'Organization',
-              icon: Icons.business_outlined,
-              hint: 'Company / Institution',
-            ),
+                label: 'Organization',
+                icon: Icons.business_outlined,
+                hint: 'Company / Institution'),
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: jobDepartmentControllers[controllerIndex],
             decoration: fieldDecoration(
-              label: 'Department',
-              icon: Icons.account_tree_outlined,
-              hint: 'Optional',
-            ),
+                label: 'Department',
+                icon: Icons.account_tree_outlined,
+                hint: 'Optional'),
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: jobLocationControllers[controllerIndex],
             decoration: fieldDecoration(
-              label: 'Job Location',
-              icon: Icons.location_on_outlined,
-              hint: 'e.g. Dhaka',
-            ),
+                label: 'Job Location',
+                icon: Icons.location_on_outlined,
+                hint: 'e.g. Dhaka'),
           ),
           const SizedBox(height: 14),
           Row(
@@ -1126,9 +873,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   controller: jobStartYearControllers[controllerIndex],
                   keyboardType: TextInputType.number,
                   decoration: fieldDecoration(
-                    label: 'Start Year',
-                    icon: Icons.calendar_today_outlined,
-                  ),
+                      label: 'Start Year', icon: Icons.calendar_today_outlined),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1137,9 +882,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   controller: jobEndYearControllers[controllerIndex],
                   keyboardType: TextInputType.number,
                   decoration: fieldDecoration(
-                    label: isCurrent ? 'Present' : 'End Year',
-                    icon: Icons.event_outlined,
-                  ),
+                      label: isCurrent ? 'Present' : 'End Year',
+                      icon: Icons.event_outlined),
                   enabled: !isCurrent,
                 ),
               ),
@@ -1150,152 +894,105 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             controller: jobDescriptionControllers[controllerIndex],
             maxLines: 3,
             decoration: fieldDecoration(
-              label: 'Job Description',
-              icon: Icons.description_outlined,
-              hint: 'Optional',
-            ),
+                label: 'Job Description',
+                icon: Icons.description_outlined,
+                hint: 'Optional'),
           ),
         ],
       ),
     );
   }
 
-  // ============================================================
-  // BUSINESS CARD
-  // ============================================================
-
   Widget buildBusinessCard() {
-    final index = currentJobs.length;
-
-    if (businessNameControllers[9999] == null) {
-      _createBusinessControllers(9999);
-    }
-
+    if (businessNameControllers[9999] == null) _createBusinessControllers(9999);
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: const Color(0xFFE4DCEA),
-        ),
+        border: Border.all(color: const Color(0xFFE4DCEA)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Icon(
-                Icons.storefront_outlined,
-                color: primaryMaroon,
-              ),
+              Icon(Icons.storefront_outlined, color: primaryMaroon),
               SizedBox(width: 10),
-              Text(
-                'Business Details',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: mainText,
-                ),
-              ),
+              Text('Business Details',
+                  style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: mainText)),
             ],
           ),
           const SizedBox(height: 16),
           TextFormField(
             controller: businessNameControllers[9999],
             decoration: fieldDecoration(
-              label: 'Business Name',
-              icon: Icons.store_outlined,
-            ),
+                label: 'Business Name', icon: Icons.store_outlined),
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: businessTypeControllers[9999],
             decoration: fieldDecoration(
-              label: 'Business Type',
-              icon: Icons.business_center_outlined,
-              hint: 'e.g. Online Business',
-            ),
+                label: 'Business Type',
+                icon: Icons.business_center_outlined,
+                hint: 'e.g. Online Business'),
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: businessCategoryControllers[9999],
             decoration: fieldDecoration(
-              label: 'Business Category',
-              icon: Icons.category_outlined,
-              hint: 'e.g. Electronics',
-            ),
+                label: 'Business Category',
+                icon: Icons.category_outlined,
+                hint: 'e.g. Electronics'),
           ),
           const SizedBox(height: 14),
           TextFormField(
             decoration: fieldDecoration(
-              label: 'Business Location',
-              icon: Icons.location_on_outlined,
-            ),
+                label: 'Business Location', icon: Icons.location_on_outlined),
           ),
           const SizedBox(height: 14),
           TextFormField(
             maxLines: 3,
             decoration: fieldDecoration(
-              label: 'Business Description',
-              icon: Icons.description_outlined,
-            ),
+                label: 'Business Description',
+                icon: Icons.description_outlined),
           ),
         ],
       ),
     );
   }
 
-  // ============================================================
-  // SECTION HEADER
-  // ============================================================
-
-  Widget sectionHeader({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-  }) {
+  Widget sectionHeader(
+      {required IconData icon, required String title, String? subtitle}) {
     return Padding(
-      padding: const EdgeInsets.only(
-        top: 10,
-        bottom: 14,
-      ),
+      padding: const EdgeInsets.only(top: 10, bottom: 14),
       child: Row(
         children: [
           Container(
             width: 46,
             height: 46,
             decoration: BoxDecoration(
-              color: lightMaroon,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              icon,
-              color: primaryMaroon,
-            ),
+                color: lightMaroon, borderRadius: BorderRadius.circular(14)),
+            child: Icon(icon, color: primaryMaroon),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: mainText,
-                  ),
-                ),
-                if (subtitle != null)
-                  Text(
-                    subtitle,
+                Text(title,
                     style: const TextStyle(
-                      fontSize: 13,
-                      color: secondaryText,
-                    ),
-                  ),
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: mainText)),
+                if (subtitle != null)
+                  Text(subtitle,
+                      style:
+                          const TextStyle(fontSize: 13, color: secondaryText)),
               ],
             ),
           ),
@@ -1304,50 +1001,46 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     );
   }
 
-  // ============================================================
-  // ADD BUTTON
-  // ============================================================
-
-  Widget addButton({
-    required String text,
-    required VoidCallback onPressed,
-  }) {
+  Widget addButton({required String text, required VoidCallback onPressed}) {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
         onPressed: onPressed,
-        icon: const Icon(
-          Icons.add_circle_outline,
-        ),
-        label: Text(
-          text,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        icon: const Icon(Icons.add_circle_outline),
+        label: Text(text, style: const TextStyle(fontWeight: FontWeight.bold)),
         style: OutlinedButton.styleFrom(
           foregroundColor: primaryMaroon,
-          side: const BorderSide(
-            color: primaryMaroon,
-            width: 1.3,
-          ),
-          padding: const EdgeInsets.symmetric(
-            vertical: 14,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          side: const BorderSide(color: primaryMaroon, width: 1.3),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
       ),
     );
   }
 
   // ============================================================
-  // BUILD
+  // BUILD (Responsive Layout Switcher)
   // ============================================================
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 🌐 ওয়েব বা বড় স্ক্রিনের জন্য (900px এর বেশি)
+        if (constraints.maxWidth > 900) {
+          return _buildWebLayout();
+        }
+        // 📱 মোবাইলের জন্য (আপনার অরিজিনাল কোড)
+        return _buildMobileLayout();
+      },
+    );
+  }
+
+  // ============================================================
+  // 📱 ১. মোবাইল লেআউট (Original Code - Untouched)
+  // ============================================================
+  Widget _buildMobileLayout() {
     final bool isBusiness = currentStatus == 'Business';
 
     return Scaffold(
@@ -1358,48 +1051,31 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         centerTitle: true,
         title: Text(
           widget.isBangla ? 'প্রোফাইল সেটআপ' : 'Profile Setup',
-          style: const TextStyle(
-            color: deepMaroon,
-            fontWeight: FontWeight.bold,
-          ),
+          style:
+              const TextStyle(color: deepMaroon, fontWeight: FontWeight.bold),
         ),
-        iconTheme: const IconThemeData(
-          color: deepMaroon,
-        ),
+        iconTheme: const IconThemeData(color: deepMaroon),
       ),
       body: SafeArea(
         child: Form(
           key: formKey,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              10,
-              20,
-              30,
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
             children: [
               // ==================================================
               // PROGRESS
               // ==================================================
-
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      primaryMaroon,
-                      deepMaroon,
-                    ],
-                  ),
+                  gradient:
+                      const LinearGradient(colors: [primaryMaroon, deepMaroon]),
                   borderRadius: BorderRadius.circular(22),
                 ),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.person_outline,
-                      color: Colors.white,
-                      size: 30,
-                    ),
+                    const Icon(Icons.person_outline,
+                        color: Colors.white, size: 30),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -1410,10 +1086,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                                 ? 'আপনার সম্পর্কে আরও তথ্য দিন'
                                 : 'Tell us more about yourself',
                             style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                            ),
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -1421,11 +1096,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                                 ? 'এই তথ্যগুলো আপনার ম্যাচিং আরও নির্ভুল করতে সাহায্য করবে।'
                                 : 'These details will help improve your matching.',
                             style: TextStyle(
-                              color: Colors.white.withValues(
-                                alpha: 0.85,
-                              ),
-                              fontSize: 12,
-                            ),
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontSize: 12),
                           ),
                         ],
                       ),
@@ -1433,76 +1105,46 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   ],
                 ),
               ),
-
               const SizedBox(height: 22),
 
               // ==================================================
               // BASIC INFORMATION
               // ==================================================
-
               sectionHeader(
-                icon: Icons.person_pin_outlined,
-                title: widget.isBangla ? 'মৌলিক তথ্য' : 'Basic Information',
-              ),
-
+                  icon: Icons.person_pin_outlined,
+                  title: widget.isBangla ? 'মৌলিক তথ্য' : 'Basic Information'),
               TextFormField(
                 controller: ageController,
                 keyboardType: TextInputType.number,
                 decoration: fieldDecoration(
-                  label: widget.isBangla ? 'বয়স' : 'Age',
-                  icon: Icons.cake_outlined,
-                  hint: 'e.g. 28',
-                ),
+                    label: widget.isBangla ? 'বয়স' : 'Age',
+                    icon: Icons.cake_outlined,
+                    hint: 'e.g. 28'),
                 validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Required';
-                  }
-
-                  final age = int.tryParse(
-                    value.trim(),
-                  );
-
-                  if (age == null || age < 18 || age > 100) {
+                  if (value == null || value.trim().isEmpty) return 'Required';
+                  final age = int.tryParse(value.trim());
+                  if (age == null || age < 18 || age > 100)
                     return 'Enter a valid age';
-                  }
-
                   return null;
                 },
               ),
-
               const SizedBox(height: 14),
-
               buildDropdown<String>(
                 label: widget.isBangla ? 'জেলা' : 'District',
                 icon: Icons.location_on_outlined,
                 value: district,
                 items: districts,
-                onChanged: (value) {
-                  setState(() {
-                    district = value;
-                  });
-                },
+                onChanged: (value) => setState(() => district = value),
               ),
-
               const SizedBox(height: 14),
-
               buildDropdown<String>(
                 label: widget.isBangla ? 'বৈবাহিক অবস্থা' : 'Marital Status',
                 icon: Icons.favorite_border,
                 value: maritalStatus,
                 items: maritalStatuses,
-                onChanged: (value) {
-                  setState(() {
-                    maritalStatus = value;
-                  });
-                },
+                onChanged: (value) => setState(() => maritalStatus = value),
               ),
               const SizedBox(height: 14),
-
-// ==================================================
-// HEIGHT
-// ==================================================
-
               buildDropdown<String>(
                 label: widget.isBangla ? 'উচ্চতা' : 'Height',
                 icon: Icons.height,
@@ -1538,21 +1180,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   "6'9\"",
                   "6'10\"",
                   "6'11\"",
-                  "7'0\"",
+                  "7'0\""
                 ],
-                onChanged: (value) {
-                  setState(() {
-                    height = value;
-                  });
-                },
+                onChanged: (value) => setState(() => height = value),
               ),
-
               const SizedBox(height: 14),
-
-              // ==================================================
-              // SKIN TONE
-              // ==================================================
-
               buildDropdown<String>(
                 label: widget.isBangla ? 'গায়ের রং' : 'Skin Tone',
                 icon: Icons.color_lens_outlined,
@@ -1562,21 +1194,15 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   'Fair (ফর্সা)',
                   'Wheatish (উজ্জ্বল শ্যামলা)',
                   'Medium (শ্যামলা)',
-                  'Dark (কালো)',
+                  'Dark (কালো)'
                 ],
-                onChanged: (value) {
-                  setState(() {
-                    skinTone = value;
-                  });
-                },
+                onChanged: (value) => setState(() => skinTone = value),
               ),
 
               // ==================================================
               // EDUCATION
               // ==================================================
-
               const SizedBox(height: 18),
-
               sectionHeader(
                 icon: Icons.school_outlined,
                 title: widget.isBangla ? 'শিক্ষাগত যোগ্যতা' : 'Education',
@@ -1584,25 +1210,18 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     ? 'SSC থেকে PhD পর্যন্ত একাধিক যোগ্যতা যোগ করতে পারবেন'
                     : 'Add multiple qualifications from SSC to PhD',
               ),
-
-              ...List.generate(
-                educationEntries.length,
-                (index) => buildEducationCard(index),
-              ),
-
+              ...List.generate(educationEntries.length,
+                  (index) => buildEducationCard(index)),
               addButton(
-                text: widget.isBangla
-                    ? 'আরও শিক্ষা যোগ করুন'
-                    : 'Add More Education',
-                onPressed: addEducation,
-              ),
+                  text: widget.isBangla
+                      ? 'আরও শিক্ষা যোগ করুন'
+                      : 'Add More Education',
+                  onPressed: addEducation),
 
               // ==================================================
               // PROFESSION
               // ==================================================
-
               const SizedBox(height: 24),
-
               sectionHeader(
                 icon: Icons.work_outline,
                 title: widget.isBangla ? 'পেশাগত তথ্য' : 'Profession & Career',
@@ -1610,7 +1229,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     ? 'আপনার বর্তমান পেশা নির্বাচন করুন'
                     : 'Select your current professional status',
               ),
-
               buildDropdown<String>(
                 label: widget.isBangla ? 'বর্তমান অবস্থা' : 'Current Status',
                 icon: Icons.work_history_outlined,
@@ -1619,139 +1237,86 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 onChanged: (value) {
                   setState(() {
                     currentStatus = value;
-
-                    if (value == 'Business') {
-                      if (businessNameControllers[9999] == null) {
-                        _createBusinessControllers(9999);
-                      }
+                    if (value == 'Business' &&
+                        businessNameControllers[9999] == null) {
+                      _createBusinessControllers(9999);
                     }
                   });
                 },
               ),
-
-              // ==================================================
-              // STUDENT
-              // ==================================================
 
               if (currentStatus == 'Student')
                 Container(
                   margin: const EdgeInsets.only(top: 16),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: const Color(0xFFE4DCEA),
-                    ),
-                  ),
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: const Color(0xFFE4DCEA))),
                   child: Column(
                     children: [
-                      const Row(
-                        children: [
-                          Icon(
-                            Icons.school_outlined,
-                            color: primaryMaroon,
-                          ),
-                          SizedBox(width: 10),
-                          Text(
-                            'Current Study Details',
+                      const Row(children: [
+                        Icon(Icons.school_outlined, color: primaryMaroon),
+                        SizedBox(width: 10),
+                        Text('Current Study Details',
                             style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: mainText,
-                            ),
-                          ),
-                        ],
-                      ),
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                color: mainText))
+                      ]),
                       const SizedBox(height: 16),
                       TextFormField(
-                        decoration: fieldDecoration(
-                          label: 'Current Institution',
-                          icon: Icons.account_balance_outlined,
-                        ),
-                      ),
+                          decoration: fieldDecoration(
+                              label: 'Current Institution',
+                              icon: Icons.account_balance_outlined)),
                       const SizedBox(height: 14),
                       TextFormField(
-                        decoration: fieldDecoration(
-                          label: 'Degree / Program',
-                          icon: Icons.school_outlined,
-                        ),
-                      ),
+                          decoration: fieldDecoration(
+                              label: 'Degree / Program',
+                              icon: Icons.school_outlined)),
                       const SizedBox(height: 14),
                       TextFormField(
-                        decoration: fieldDecoration(
-                          label: 'Subject / Department',
-                          icon: Icons.menu_book_outlined,
-                        ),
-                      ),
+                          decoration: fieldDecoration(
+                              label: 'Subject / Department',
+                              icon: Icons.menu_book_outlined)),
                       const SizedBox(height: 14),
                       TextFormField(
-                        decoration: fieldDecoration(
-                          label: 'Current Year / Semester',
-                          icon: Icons.calendar_view_month_outlined,
-                        ),
-                      ),
+                          decoration: fieldDecoration(
+                              label: 'Current Year / Semester',
+                              icon: Icons.calendar_view_month_outlined)),
                       const SizedBox(height: 14),
                       TextFormField(
-                        keyboardType: TextInputType.number,
-                        decoration: fieldDecoration(
-                          label: 'Expected Completion Year',
-                          icon: Icons.event_available_outlined,
-                          hint: 'e.g. 2027',
-                        ),
-                      ),
+                          keyboardType: TextInputType.number,
+                          decoration: fieldDecoration(
+                              label: 'Expected Completion Year',
+                              icon: Icons.event_available_outlined,
+                              hint: 'e.g. 2027')),
                     ],
                   ),
                 ),
 
-              // ==================================================
-              // BUSINESS
-              // ==================================================
-
               if (isBusiness) buildBusinessCard(),
-
-              // ==================================================
-              // HOUSE MAKER
-              // ==================================================
 
               if (currentStatus == 'House Maker')
                 Container(
                   margin: const EdgeInsets.only(top: 16),
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
-                    color: lightGold,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: primaryGold.withValues(
-                        alpha: 0.4,
-                      ),
-                    ),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(
-                        Icons.home_outlined,
-                        color: deepGold,
-                        size: 30,
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'House Maker',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: mainText,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                      color: lightGold,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: primaryGold.withValues(alpha: 0.4))),
+                  child: const Row(children: [
+                    Icon(Icons.home_outlined, color: deepGold, size: 30),
+                    SizedBox(width: 12),
+                    Expanded(
+                        child: Text('House Maker',
+                            style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                color: mainText)))
+                  ]),
                 ),
-
-              // ==================================================
-              // CURRENT JOB
-              // ==================================================
 
               if (currentStatus != null &&
                   currentStatus != 'Student' &&
@@ -1759,49 +1324,37 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   currentStatus != 'House Maker') ...[
                 const SizedBox(height: 16),
                 ...List.generate(
-                  currentJobs.length,
-                  (index) => buildJobCard(
-                    index: index,
-                    job: currentJobs[index],
-                    isCurrent: true,
-                  ),
-                ),
+                    currentJobs.length,
+                    (index) => buildJobCard(
+                        index: index,
+                        job: currentJobs[index],
+                        isCurrent: true)),
                 addButton(
-                  text: widget.isBangla
-                      ? 'আরও বর্তমান চাকরি যোগ করুন'
-                      : 'Add Another Current Job',
-                  onPressed: addCurrentJob,
-                ),
+                    text: widget.isBangla
+                        ? 'আরও বর্তমান চাকরি যোগ করুন'
+                        : 'Add Another Current Job',
+                    onPressed: addCurrentJob),
               ],
-
-              // ==================================================
-              // CURRENT JOB FOR BUSINESS TOO
-              // ==================================================
 
               if (currentStatus == 'Business') ...[
                 const SizedBox(height: 16),
                 ...List.generate(
-                  currentJobs.length,
-                  (index) => buildJobCard(
-                    index: index,
-                    job: currentJobs[index],
-                    isCurrent: true,
-                  ),
-                ),
+                    currentJobs.length,
+                    (index) => buildJobCard(
+                        index: index,
+                        job: currentJobs[index],
+                        isCurrent: true)),
                 addButton(
-                  text: widget.isBangla
-                      ? 'আরও বর্তমান পেশা যোগ করুন'
-                      : 'Add Another Current Profession',
-                  onPressed: addCurrentJob,
-                ),
+                    text: widget.isBangla
+                        ? 'আরও বর্তমান পেশা যোগ করুন'
+                        : 'Add Another Current Profession',
+                    onPressed: addCurrentJob),
               ],
 
               // ==================================================
               // PREVIOUS JOBS
               // ==================================================
-
               const SizedBox(height: 24),
-
               sectionHeader(
                 icon: Icons.history_outlined,
                 title: widget.isBangla
@@ -1811,29 +1364,22 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     ? 'আগের চাকরি বা পেশার তথ্য চাইলে যোগ করুন'
                     : 'Add your previous jobs or careers if applicable',
               ),
-
               ...List.generate(
-                previousJobs.length,
-                (index) => buildJobCard(
-                  index: index,
-                  job: previousJobs[index],
-                  isCurrent: false,
-                ),
-              ),
-
+                  previousJobs.length,
+                  (index) => buildJobCard(
+                      index: index,
+                      job: previousJobs[index],
+                      isCurrent: false)),
               addButton(
-                text: widget.isBangla
-                    ? 'পূর্বের চাকরি যোগ করুন'
-                    : 'Add Previous Job',
-                onPressed: addPreviousJob,
-              ),
+                  text: widget.isBangla
+                      ? 'পূর্বের চাকরি যোগ করুন'
+                      : 'Add Previous Job',
+                  onPressed: addPreviousJob),
 
               // ==================================================
               // CONTINUE BUTTON
               // ==================================================
-
               const SizedBox(height: 30),
-
               SizedBox(
                 height: 58,
                 child: ElevatedButton(
@@ -1843,28 +1389,471 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     foregroundColor: Colors.white,
                     elevation: 5,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
+                        borderRadius: BorderRadius.circular(20)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        widget.isBangla ? 'পরবর্তী ধাপে যান' : 'Continue',
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      Text(widget.isBangla ? 'পরবর্তী ধাপে যান' : 'Continue',
+                          style: const TextStyle(
+                              fontSize: 17, fontWeight: FontWeight.bold)),
                       const SizedBox(width: 10),
-                      const Icon(
-                        Icons.arrow_forward_rounded,
-                      ),
+                      const Icon(Icons.arrow_forward_rounded),
                     ],
                   ),
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // 💻 ২. ওয়েব লেআউট (নতুন প্রিমিয়াম ডিজাইন)
+  // ============================================================
+  Widget _buildWebLayout() {
+    final bool isBusiness = currentStatus == 'Business';
+
+    return Scaffold(
+      backgroundColor:
+          const Color(0xFFF4F6F9), // ওয়েবের জন্য হালকা গ্রে ব্যাকগ্রাউন্ড
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 1,
+        shadowColor: Colors.black.withValues(alpha: 0.1),
+        title: Text(
+          widget.isBangla ? 'প্রোফাইল সেটআপ' : 'Profile Setup',
+          style:
+              const TextStyle(color: deepMaroon, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
+      body: Form(
+        key: formKey,
+        child: SingleChildScrollView(
+          child: Center(
+            child: ConstrainedBox(
+              constraints:
+                  const BoxConstraints(maxWidth: 1200), // ওয়েবের ম্যাক্স উইডথ
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 40, vertical: 30),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Progress Banner (Full Width)
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                            colors: [primaryMaroon, deepMaroon]),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                              color: primaryMaroon.withValues(alpha: 0.2),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10))
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.person_outline,
+                              color: Colors.white, size: 40),
+                          const SizedBox(width: 20),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.isBangla
+                                      ? 'আপনার সম্পর্কে আরও তথ্য দিন'
+                                      : 'Tell us more about yourself',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  widget.isBangla
+                                      ? 'এই তথ্যগুলো আপনার ম্যাচিং আরও নির্ভুল করতে সাহায্য করবে।'
+                                      : 'These details will help improve your matching.',
+                                  style: TextStyle(
+                                      color:
+                                          Colors.white.withValues(alpha: 0.85),
+                                      fontSize: 15),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 30),
+
+                    // দুই কলামের গ্রিড
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // 🔴 বাম কলাম (Basic Info & Education)
+                        Expanded(
+                          flex: 1,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              sectionHeader(
+                                  icon: Icons.person_pin_outlined,
+                                  title: widget.isBangla
+                                      ? 'মৌলিক তথ্য'
+                                      : 'Basic Information'),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: ageController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: fieldDecoration(
+                                          label:
+                                              widget.isBangla ? 'বয়স' : 'Age',
+                                          icon: Icons.cake_outlined,
+                                          hint: 'e.g. 28'),
+                                      validator: (value) {
+                                        if (value == null ||
+                                            value.trim().isEmpty)
+                                          return 'Required';
+                                        final age = int.tryParse(value.trim());
+                                        if (age == null ||
+                                            age < 18 ||
+                                            age > 100)
+                                          return 'Enter a valid age';
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: buildDropdown<String>(
+                                      label:
+                                          widget.isBangla ? 'জেলা' : 'District',
+                                      icon: Icons.location_on_outlined,
+                                      value: district,
+                                      items: districts,
+                                      onChanged: (value) =>
+                                          setState(() => district = value),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: buildDropdown<String>(
+                                      label: widget.isBangla
+                                          ? 'বৈবাহিক অবস্থা'
+                                          : 'Marital Status',
+                                      icon: Icons.favorite_border,
+                                      value: maritalStatus,
+                                      items: maritalStatuses,
+                                      onChanged: (value) =>
+                                          setState(() => maritalStatus = value),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: buildDropdown<String>(
+                                      label:
+                                          widget.isBangla ? 'উচ্চতা' : 'Height',
+                                      icon: Icons.height,
+                                      value: height,
+                                      items: const [
+                                        "4'6\"",
+                                        "4'7\"",
+                                        "4'8\"",
+                                        "4'9\"",
+                                        "4'10\"",
+                                        "4'11\"",
+                                        "5'0\"",
+                                        "5'1\"",
+                                        "5'2\"",
+                                        "5'3\"",
+                                        "5'4\"",
+                                        "5'5\"",
+                                        "5'6\"",
+                                        "5'7\"",
+                                        "5'8\"",
+                                        "5'9\"",
+                                        "5'10\"",
+                                        "5'11\"",
+                                        "6'0\"",
+                                        "6'1\"",
+                                        "6'2\"",
+                                        "6'3\"",
+                                        "6'4\"",
+                                        "6'5\"",
+                                        "6'6\"",
+                                        "6'7\"",
+                                        "6'8\"",
+                                        "6'9\"",
+                                        "6'10\"",
+                                        "6'11\"",
+                                        "7'0\""
+                                      ],
+                                      onChanged: (value) =>
+                                          setState(() => height = value),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              buildDropdown<String>(
+                                label:
+                                    widget.isBangla ? 'গায়ের রং' : 'Skin Tone',
+                                icon: Icons.color_lens_outlined,
+                                value: skinTone,
+                                items: const [
+                                  'Very Fair (উজ্জ্বল ফর্সা)',
+                                  'Fair (ফর্সা)',
+                                  'Wheatish (উজ্জ্বল শ্যামলা)',
+                                  'Medium (শ্যামলা)',
+                                  'Dark (কালো)'
+                                ],
+                                onChanged: (value) =>
+                                    setState(() => skinTone = value),
+                              ),
+                              const SizedBox(height: 30),
+                              sectionHeader(
+                                icon: Icons.school_outlined,
+                                title: widget.isBangla
+                                    ? 'শিক্ষাগত যোগ্যতা'
+                                    : 'Education',
+                                subtitle: widget.isBangla
+                                    ? 'SSC থেকে PhD পর্যন্ত একাধিক যোগ্যতা যোগ করতে পারবেন'
+                                    : 'Add multiple qualifications from SSC to PhD',
+                              ),
+                              ...List.generate(educationEntries.length,
+                                  (index) => buildEducationCard(index)),
+                              addButton(
+                                  text: widget.isBangla
+                                      ? 'আরও শিক্ষা যোগ করুন'
+                                      : 'Add More Education',
+                                  onPressed: addEducation),
+                            ],
+                          ),
+                        ),
+
+                        // মাঝখানে গ্যাপ
+                        const SizedBox(width: 40),
+
+                        // 🟢 ডান কলাম (Profession)
+                        Expanded(
+                          flex: 1,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              sectionHeader(
+                                icon: Icons.work_outline,
+                                title: widget.isBangla
+                                    ? 'পেশাগত তথ্য'
+                                    : 'Profession & Career',
+                                subtitle: widget.isBangla
+                                    ? 'আপনার বর্তমান পেশা নির্বাচন করুন'
+                                    : 'Select your current professional status',
+                              ),
+                              buildDropdown<String>(
+                                label: widget.isBangla
+                                    ? 'বর্তমান অবস্থা'
+                                    : 'Current Status',
+                                icon: Icons.work_history_outlined,
+                                value: currentStatus,
+                                items: statusOptions,
+                                onChanged: (value) {
+                                  setState(() {
+                                    currentStatus = value;
+                                    if (value == 'Business' &&
+                                        businessNameControllers[9999] == null) {
+                                      _createBusinessControllers(9999);
+                                    }
+                                  });
+                                },
+                              ),
+                              if (currentStatus == 'Student')
+                                Container(
+                                  margin: const EdgeInsets.only(top: 16),
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(22),
+                                      border: Border.all(
+                                          color: const Color(0xFFE4DCEA))),
+                                  child: Column(
+                                    children: [
+                                      const Row(children: [
+                                        Icon(Icons.school_outlined,
+                                            color: primaryMaroon),
+                                        SizedBox(width: 10),
+                                        Text('Current Study Details',
+                                            style: TextStyle(
+                                                fontSize: 17,
+                                                fontWeight: FontWeight.bold,
+                                                color: mainText))
+                                      ]),
+                                      const SizedBox(height: 16),
+                                      TextFormField(
+                                          decoration: fieldDecoration(
+                                              label: 'Current Institution',
+                                              icon: Icons
+                                                  .account_balance_outlined)),
+                                      const SizedBox(height: 14),
+                                      TextFormField(
+                                          decoration: fieldDecoration(
+                                              label: 'Degree / Program',
+                                              icon: Icons.school_outlined)),
+                                      const SizedBox(height: 14),
+                                      TextFormField(
+                                          decoration: fieldDecoration(
+                                              label: 'Subject / Department',
+                                              icon: Icons.menu_book_outlined)),
+                                      const SizedBox(height: 14),
+                                      TextFormField(
+                                          decoration: fieldDecoration(
+                                              label: 'Current Year / Semester',
+                                              icon: Icons
+                                                  .calendar_view_month_outlined)),
+                                      const SizedBox(height: 14),
+                                      TextFormField(
+                                          keyboardType: TextInputType.number,
+                                          decoration: fieldDecoration(
+                                              label: 'Expected Completion Year',
+                                              icon: Icons
+                                                  .event_available_outlined,
+                                              hint: 'e.g. 2027')),
+                                    ],
+                                  ),
+                                ),
+                              if (isBusiness) buildBusinessCard(),
+                              if (currentStatus == 'House Maker')
+                                Container(
+                                  margin: const EdgeInsets.only(top: 16),
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(
+                                      color: lightGold,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                          color: primaryGold.withValues(
+                                              alpha: 0.4))),
+                                  child: const Row(children: [
+                                    Icon(Icons.home_outlined,
+                                        color: deepGold, size: 30),
+                                    SizedBox(width: 12),
+                                    Expanded(
+                                        child: Text('House Maker',
+                                            style: TextStyle(
+                                                fontSize: 17,
+                                                fontWeight: FontWeight.bold,
+                                                color: mainText)))
+                                  ]),
+                                ),
+                              if (currentStatus != null &&
+                                  currentStatus != 'Student' &&
+                                  currentStatus != 'Business' &&
+                                  currentStatus != 'House Maker') ...[
+                                const SizedBox(height: 16),
+                                ...List.generate(
+                                    currentJobs.length,
+                                    (index) => buildJobCard(
+                                        index: index,
+                                        job: currentJobs[index],
+                                        isCurrent: true)),
+                                addButton(
+                                    text: widget.isBangla
+                                        ? 'আরও বর্তমান চাকরি যোগ করুন'
+                                        : 'Add Another Current Job',
+                                    onPressed: addCurrentJob),
+                              ],
+                              if (currentStatus == 'Business') ...[
+                                const SizedBox(height: 16),
+                                ...List.generate(
+                                    currentJobs.length,
+                                    (index) => buildJobCard(
+                                        index: index,
+                                        job: currentJobs[index],
+                                        isCurrent: true)),
+                                addButton(
+                                    text: widget.isBangla
+                                        ? 'আরও বর্তমান পেশা যোগ করুন'
+                                        : 'Add Another Current Profession',
+                                    onPressed: addCurrentJob),
+                              ],
+                              const SizedBox(height: 30),
+                              sectionHeader(
+                                icon: Icons.history_outlined,
+                                title: widget.isBangla
+                                    ? 'পূর্বের চাকরি / পেশা'
+                                    : 'Previous Jobs / Careers',
+                                subtitle: widget.isBangla
+                                    ? 'আগের চাকরি বা পেশার তথ্য চাইলে যোগ করুন'
+                                    : 'Add your previous jobs or careers if applicable',
+                              ),
+                              ...List.generate(
+                                  previousJobs.length,
+                                  (index) => buildJobCard(
+                                      index: index,
+                                      job: previousJobs[index],
+                                      isCurrent: false)),
+                              addButton(
+                                  text: widget.isBangla
+                                      ? 'পূর্বের চাকরি যোগ করুন'
+                                      : 'Add Previous Job',
+                                  onPressed: addPreviousJob),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 40),
+
+                    // সাবমিট বাটন (সেন্টারে)
+                    Center(
+                      child: SizedBox(
+                        width: 400,
+                        height: 60,
+                        child: ElevatedButton(
+                          onPressed: saveProfile,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryMaroon,
+                            foregroundColor: Colors.white,
+                            elevation: 8,
+                            shadowColor: primaryMaroon.withValues(alpha: 0.4),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                  widget.isBangla
+                                      ? 'পরবর্তী ধাপে যান'
+                                      : 'Continue',
+                                  style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold)),
+                              const SizedBox(width: 10),
+                              const Icon(Icons.arrow_forward_rounded),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
