@@ -1,6 +1,7 @@
+import 'dart:math' as math; // ✅ অ্যানিমেশনের জন্য প্রয়োজন
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_fonts/google_fonts.dart'; // ✅ প্রিমিয়াম ফন্টের জন্য
+import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/colors.dart';
 import '../utils/deactivate_service.dart';
@@ -9,8 +10,8 @@ import 'home_screen.dart';
 import 'registration_screen.dart';
 import 'forgot_password_screen.dart';
 import '../services/location_service.dart';
-import 'package:flutter/foundation.dart'; // kIsWeb এর জন্য
-import 'web_registration_screen.dart'; // আপনার নতুন ফাইলটি
+import 'package:flutter/foundation.dart';
+import 'web_registration_screen.dart';
 
 // ============================================================
 // LOGIN SCREEN
@@ -25,14 +26,29 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+// ✅ SingleTickerProviderStateMixin যোগ করা হয়েছে অ্যানিমেশনের জন্য
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   bool isLoggingIn = false;
-  bool _isHoveringButton = false; // ওয়েব হোভার ইফেক্টের জন্য
+  bool _isHoveringButton = false;
+
+  late AnimationController _animationController; // অ্যানিমেশন কন্ট্রোলার
+
+  @override
+  void initState() {
+    super.initState();
+    // অ্যানিমেশন লুপ সেটআপ (4 সেকেন্ডে একবার সামনে-পেছনে)
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat(reverse: true);
+  }
 
   @override
   void dispose() {
+    _animationController.dispose(); // অ্যানিমেশন ডিসপোজ
     emailController.dispose();
     passwordController.dispose();
     super.dispose();
@@ -144,7 +160,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _showUnverifiedDialog(bool bn, User user) async {
-    // ... (আপনার আগের Unverified Dialog কোডটি এখানে বসান, আমি নিচে সংক্ষেপে দিয়েছি)
     bool isSending = false;
     bool isChecking = false;
 
@@ -324,7 +339,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _showReactivateDialog(bool bn) async {
-    // ... (আপনার আগের Reactivate Dialog কোডটি এখানে বসান, আমি সংক্ষেপে দিয়েছি)
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -436,7 +450,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ============================================================
-  // BUILD (মোবাইল এবং ওয়েব ভিউ আলাদা করা হলো)
+  // BUILD
   // ============================================================
   @override
   Widget build(BuildContext context) {
@@ -449,7 +463,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ============================================================
-  // 📱 মোবাইল লেআউট (আপনার আগের ডিজাইন)
+  // 📱 মোবাইল লেআউট
   // ============================================================
   Widget _buildMobileLayout(bool bn) {
     return SafeArea(
@@ -517,7 +531,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ============================================================
-  // 💻 ওয়েব লেআউট (প্রিমিয়াম স্প্লিট স্ক্রিন)
+  // 💻 ওয়েব লেআউট (প্রিমিয়াম স্প্লিট স্ক্রিন + অ্যানিমেশন)
   // ============================================================
   Widget _buildWebLayout(bool bn) {
     return Row(
@@ -533,36 +547,112 @@ class _LoginScreenState extends State<LoginScreen> {
                 colors: [Color(0xFF8B1E3F), Color(0xFF5E1128)],
               ),
             ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset('assets/logo.png',
-                      width: 120, height: 120, fit: BoxFit.contain),
-                  const SizedBox(height: 30),
-                  Text(
-                    bn ? 'আবার স্বাগতম' : 'Welcome Back',
-                    style: GoogleFonts.hindSiliguri(
-                      fontSize: 50,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+            child: Stack(
+              children: [
+                // ব্যাকগ্রাউন্ডে হালকা গ্লোয়িং সার্কেল (লোগো ফুটিয়ে তোলার জন্য)
+                Center(
+                  child: Container(
+                    width: 400,
+                    height: 400,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          primaryGold.withValues(alpha: 0.15),
+                          Colors.transparent,
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 15),
-                  Text(
-                    bn
-                        ? 'আপনার জীবনসাথী আপনার অপেক্ষায় আছে।'
-                        : 'Your life partner is waiting for you.',
-                    style: GoogleFonts.hindSiliguri(
-                        fontSize: 20, color: Colors.white70),
+                ),
+
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // ✅ অ্যানিমেটেড লোগো (ভাসমান এবং ব্রিদিং ইফেক্ট)
+                      AnimatedBuilder(
+                        animation: _animationController,
+                        builder: (context, child) {
+                          // ভাসমান ইফেক্ট (উপর-নিচ)
+                          final translate = math.sin(
+                                  _animationController.value * math.pi * 2) *
+                              12;
+                          // ব্রিদিং ইফেক্ট (ছোট-বড়)
+                          final scale = 1 +
+                              math.sin(_animationController.value *
+                                      math.pi *
+                                      2) *
+                                  0.04;
+
+                          return Transform.translate(
+                            offset: Offset(0, translate),
+                            child: Transform.scale(
+                              scale: scale,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding:
+                              const EdgeInsets.all(20), // লোগোর চারপাশে ফাঁকা
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white
+                                .withValues(alpha: 0.1), // গ্লাস ইফেক্ট
+                            border: Border.all(
+                              color: primaryGold.withValues(
+                                  alpha: 0.5), // গোল্ডেন বর্ডার
+                              width: 2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: primaryGold.withValues(alpha: 0.2),
+                                blurRadius: 30,
+                                spreadRadius: 5,
+                              ),
+                            ],
+                          ),
+                          child: Image.asset(
+                            'assets/logo.png',
+                            width: 140,
+                            height: 140,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+
+                      // প্রিমিয়াম ফন্ট
+                      Text(
+                        bn ? 'আবার স্বাগতম' : 'Welcome Back',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 50,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      Text(
+                        bn
+                            ? 'আপনার জীবনসাথী আপনার অপেক্ষায় আছে।'
+                            : 'Your life partner is waiting for you.',
+                        style: GoogleFonts.hindSiliguri(
+                          fontSize: 22,
+                          color: Colors.white.withValues(alpha: 0.8),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
 
-        // ⚪ ডান দিকের ফর্ম সেকশন (Glassmorphism)
+        // ⚪ ডান দিকের ফর্ম সেকশন
         Expanded(
           flex: 5,
           child: Center(
@@ -572,7 +662,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 constraints: const BoxConstraints(maxWidth: 450),
                 padding: const EdgeInsets.all(40),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.95),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
@@ -696,7 +786,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ============================================================
-  // রিইউজেবল উইজেটস (মোবাইল এবং ওয়েব উভয়ের জন্য)
+  // রিইউজেবল উইজেটস
   // ============================================================
   Widget _buildEmailField(bool bn) {
     return TextField(
@@ -819,7 +909,6 @@ class _LoginScreenState extends State<LoginScreen> {
           context,
           MaterialPageRoute(
             builder: (_) {
-              // ✅ এখানেই kIsWeb চেক করা হলো
               if (kIsWeb) {
                 return const WebRegistrationScreen();
               } else {
