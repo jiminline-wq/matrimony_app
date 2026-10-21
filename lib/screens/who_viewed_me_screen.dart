@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
 import 'user_profile_view_screen.dart';
@@ -27,13 +28,26 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
   @override
   void initState() {
     super.initState();
-    RewardedAdManager.loadAd();
+    // ✅ ওয়েবে অ্যাড লোড করা যাবে না
+    if (!kIsWeb) {
+      RewardedAdManager.loadAd();
+    }
     _checkUnlockStatusAndLoad();
   }
 
   Future<void> _checkUnlockStatusAndLoad() async {
     final me = FirebaseAuth.instance.currentUser;
     if (me == null) return;
+
+    // ✅ ওয়েবের জন্য সরাসরি আনলক করে দেওয়া হলো (যেহেতু অ্যাড কাজ করবে না)
+    if (kIsWeb) {
+      setState(() {
+        _isUnlocked = true;
+        isLoading = true;
+      });
+      await loadViewers();
+      return;
+    }
 
     try {
       final userDoc = await FirebaseFirestore.instance
@@ -63,7 +77,7 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
           viewers = List.generate(snap.docs.length, (i) => {'dummy': true});
         });
 
-        // ✅ পেজে ঢোকার সাথে সাথেই অটোমেটিক অ্যাড শো করবে
+        // ✅ মোবাইলে পেজে ঢোকার সাথে সাথেই অটোমেটিক অ্যাড শো করবে
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!_isUnlocked && !_isUnlocking) {
             _unlockWithAd();
@@ -119,7 +133,7 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
   }
 
   Future<void> _unlockWithAd() async {
-    if (_isUnlocking) return;
+    if (_isUnlocking || kIsWeb) return;
     setState(() => _isUnlocking = true);
 
     try {
@@ -187,15 +201,26 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
       ),
       body: Column(
         children: [
-          Expanded(child: _buildBody(bn)),
-          if (_isUnlocked)
-            const BannerAdWidget(placementId: AdConfig.placementWhoViewed),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isDesktop = constraints.maxWidth > 800;
+                return _buildBody(bn, isDesktop);
+              },
+            ),
+          ),
+          // ✅ AdMob শুধু মোবাইলে
+          if (_isUnlocked && !kIsWeb)
+            const SafeArea(
+              top: false,
+              child: BannerAdWidget(placementId: AdConfig.placementWhoViewed),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildBody(bool bn) {
+  Widget _buildBody(bool bn, bool isDesktop) {
     if (isLoading || _isUnlocking) {
       return Center(
         child: Column(
@@ -281,6 +306,14 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
       );
     }
 
+    // ✅ আনলকড হলে মোবাইল বা ওয়েব লেআউট দেখাবে
+    return isDesktop ? _buildWebLayout(bn) : _buildMobileLayout(bn);
+  }
+
+  // ============================================================
+  // 📱 ১. মোবাইল লেআউট (হুবহু অক্ষত)
+  // ============================================================
+  Widget _buildMobileLayout(bool bn) {
     return RefreshIndicator(
       onRefresh: loadViewers,
       color: primaryMaroon,
@@ -313,7 +346,11 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
                         shape: BoxShape.circle, color: lightMaroon),
                     child: ClipOval(
                       child: profile.photoUrl.isNotEmpty
-                          ? Image.network(profile.photoUrl, fit: BoxFit.cover)
+                          ? Image.network(profile.photoUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.person,
+                                  color: primaryMaroon))
                           : const Icon(Icons.person, color: primaryMaroon),
                     ),
                   ),
@@ -339,6 +376,180 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
           );
         },
       ),
+    );
+  }
+
+  // ============================================================
+  // 💻 ২. ওয়েব লেআউট (নতুন প্রিমিয়াম গ্রিড ভিউ)
+  // ============================================================
+  Widget _buildWebLayout(bool bn) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(30),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // হেডার
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                        color: Colors.blue.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16)),
+                    child: const Icon(Icons.visibility,
+                        color: Colors.blue, size: 30),
+                  ),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bn ? 'প্রোফাইল ভিউয়ার্স' : 'Profile Viewers',
+                        style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: deepMaroon),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        bn
+                            ? 'মোট ${viewers.length} জন আপনার প্রোফাইল দেখেছেন'
+                            : '${viewers.length} people viewed your profile',
+                        style:
+                            const TextStyle(fontSize: 14, color: secondaryText),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // গ্রিড ভিউ
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 20,
+                  mainAxisSpacing: 20,
+                  mainAxisExtent: 320, // কার্ডের নির্দিষ্ট উচ্চতা
+                ),
+                itemCount: viewers.length,
+                itemBuilder: (context, index) {
+                  final item = viewers[index];
+                  final profile = item['profile'] as UserProfile;
+
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 15,
+                            offset: const Offset(0, 8))
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // ইমেজ
+                        Expanded(
+                          flex: 5,
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(20)),
+                            child: profile.photoUrl.isNotEmpty
+                                ? Image.network(profile.photoUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        _imgPlaceholder())
+                                : _imgPlaceholder(),
+                          ),
+                        ),
+
+                        // ইনফো
+                        Expanded(
+                          flex: 4,
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      profile.name.isEmpty
+                                          ? 'নাম নেই'
+                                          : profile.name,
+                                      style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: mainText),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text('${profile.age} • ${profile.district}',
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            color: secondaryText)),
+                                  ],
+                                ),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton(
+                                    onPressed: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                UserProfileViewScreen(
+                                                    isBangla: bn,
+                                                    user: profile))),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: primaryMaroon,
+                                      side: BorderSide(
+                                          color: primaryMaroon.withValues(
+                                              alpha: 0.3)),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10)),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 8),
+                                    ),
+                                    child: Text(
+                                        bn ? 'প্রোফাইল দেখুন' : 'View Profile',
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _imgPlaceholder() {
+    return Container(
+      color: lightMaroon,
+      child: const Center(
+          child: Icon(Icons.person, size: 80, color: primaryMaroon)),
     );
   }
 }
