@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -216,22 +217,30 @@ class _MatchesTabState extends State<MatchesTab> {
       ),
       body: Column(
         children: [
-          Expanded(child: _buildBody(bn)),
-
-          // ✅ Fixed Banner Ad at the bottom
-          const BannerAdWidget(
-            placementId: AdConfig.placementMatches,
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isDesktop = constraints.maxWidth > 800;
+                return _buildBody(bn, isDesktop);
+              },
+            ),
           ),
+
+          // ✅ AdMob শুধু মোবাইলে
+          if (!kIsWeb)
+            const SafeArea(
+              top: false,
+              child: BannerAdWidget(placementId: AdConfig.placementMatches),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildBody(bool bn) {
+  Widget _buildBody(bool bn, bool isDesktop) {
     if (isLoading) {
       return const Center(
-        child: CircularProgressIndicator(color: primaryMaroon),
-      );
+          child: CircularProgressIndicator(color: primaryMaroon));
     }
 
     if (matches.isEmpty) {
@@ -277,9 +286,7 @@ class _MatchesTabState extends State<MatchesTab> {
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: () {
-                  setState(() {
-                    isLoading = true;
-                  });
+                  setState(() => isLoading = true);
                   loadMatches();
                 },
                 icon: const Icon(Icons.refresh),
@@ -287,13 +294,10 @@ class _MatchesTabState extends State<MatchesTab> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryMaroon,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+                      borderRadius: BorderRadius.circular(14)),
                 ),
               ),
             ],
@@ -302,6 +306,14 @@ class _MatchesTabState extends State<MatchesTab> {
       );
     }
 
+    // ✅ আনলকড থাকলে মোবাইল বা ওয়েব লেআউট দেখাবে
+    return isDesktop ? _buildWebLayout(bn) : _buildMobileLayout(bn);
+  }
+
+  // ============================================================
+  // 📱 ১. মোবাইল লেআউট (হুবহু অক্ষত)
+  // ============================================================
+  Widget _buildMobileLayout(bool bn) {
     return RefreshIndicator(
       onRefresh: loadMatches,
       color: primaryMaroon,
@@ -313,16 +325,13 @@ class _MatchesTabState extends State<MatchesTab> {
           final otherUser = match['user'] as Map<String, dynamic>;
           final score = match['score'] as double? ?? 0.0;
 
-          return _buildMatchCard(otherUser, bn, score);
+          return _buildMobileMatchCard(otherUser, bn, score);
         },
       ),
     );
   }
 
-  // ============================================================
-  // MATCH CARD
-  // ============================================================
-  Widget _buildMatchCard(
+  Widget _buildMobileMatchCard(
       Map<String, dynamic> otherUser, bool bn, double score) {
     final isVerified = otherUser['isVerified'] == true;
 
@@ -361,17 +370,11 @@ class _MatchesTabState extends State<MatchesTab> {
                           width: 70,
                           height: 70,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(
-                            Icons.person,
-                            size: 35,
-                            color: primaryMaroon,
-                          ),
+                          errorBuilder: (_, __, ___) => const Icon(Icons.person,
+                              size: 35, color: primaryMaroon),
                         )
-                      : const Icon(
-                          Icons.person,
-                          size: 35,
-                          color: primaryMaroon,
-                        ),
+                      : const Icon(Icons.person,
+                          size: 35, color: primaryMaroon),
                 ),
               ),
               const SizedBox(width: 14),
@@ -381,11 +384,8 @@ class _MatchesTabState extends State<MatchesTab> {
                   children: [
                     Row(
                       children: [
-                        const Icon(
-                          Icons.favorite,
-                          size: 16,
-                          color: primaryMaroon,
-                        ),
+                        const Icon(Icons.favorite,
+                            size: 16, color: primaryMaroon),
                         const SizedBox(width: 5),
                         Expanded(
                           child: Row(
@@ -395,10 +395,9 @@ class _MatchesTabState extends State<MatchesTab> {
                                 child: Text(
                                   otherUser['name'] ?? '',
                                   style: const TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.bold,
-                                    color: mainText,
-                                  ),
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold,
+                                      color: mainText),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -415,10 +414,8 @@ class _MatchesTabState extends State<MatchesTab> {
                     const SizedBox(height: 4),
                     Text(
                       '${otherUser['age'] ?? ''} • ${otherUser['district'] ?? ''}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: secondaryText,
-                      ),
+                      style:
+                          const TextStyle(fontSize: 13, color: secondaryText),
                     ),
                     const SizedBox(height: 4),
 
@@ -477,51 +474,37 @@ class _MatchesTabState extends State<MatchesTab> {
           // Bottom Row — Action Buttons
           Row(
             children: [
-              // View Profile button (Outlined)
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _openProfile(otherUser, bn),
                   icon: const Icon(Icons.person_outline, size: 18),
-                  label: Text(
-                    bn ? 'প্রোফাইল' : 'Profile',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  label: Text(bn ? 'প্রোফাইল' : 'Profile',
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.bold)),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: primaryMaroon,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     side: const BorderSide(color: primaryMaroon, width: 1.4),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
-
               const SizedBox(width: 10),
-
-              // Message button (Filled)
               Expanded(
                 flex: 2,
                 child: ElevatedButton.icon(
                   onPressed: () => _openChat(otherUser, bn),
                   icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                  label: Text(
-                    bn ? 'মেসেজ পাঠান' : 'Send Message',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  label: Text(bn ? 'মেসেজ পাঠান' : 'Send Message',
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryMaroon,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
                 ),
@@ -530,6 +513,287 @@ class _MatchesTabState extends State<MatchesTab> {
           ),
         ],
       ),
+    );
+  }
+
+  // ============================================================
+  // 💻 ২. ওয়েব লেআউট (নতুন প্রিমিয়াম গ্রিড ভিউ)
+  // ============================================================
+  Widget _buildWebLayout(bool bn) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(30),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // হেডার
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                        color: Colors.pink.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16)),
+                    child: const Icon(Icons.favorite,
+                        color: Colors.pink, size: 30),
+                  ),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        bn ? 'আমার ম্যাচ' : 'My Matches',
+                        style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: deepMaroon),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        bn
+                            ? 'মোট ${matches.length}টি ম্যাচ পাওয়া গেছে'
+                            : '${matches.length} matches found',
+                        style:
+                            const TextStyle(fontSize: 14, color: secondaryText),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // গ্রিড ভিউ
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 20,
+                  mainAxisSpacing: 20,
+                  mainAxisExtent: 380, // কার্ডের নির্দিষ্ট উচ্চতা
+                ),
+                itemCount: matches.length,
+                itemBuilder: (context, index) {
+                  final match = matches[index];
+                  final otherUser = match['user'] as Map<String, dynamic>;
+                  final score = match['score'] as double? ?? 0.0;
+
+                  return _buildWebMatchCard(otherUser, bn, score);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWebMatchCard(
+      Map<String, dynamic> otherUser, bool bn, double score) {
+    final isVerified = otherUser['isVerified'] == true;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 15,
+              offset: const Offset(0, 8))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ইমেজ
+          Expanded(
+            flex: 5,
+            child: ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  (otherUser['photoUrl'] as String? ?? '').isNotEmpty
+                      ? Image.network(
+                          otherUser['photoUrl'],
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _imgPlaceholder(),
+                        )
+                      : _imgPlaceholder(),
+                  // ওভারলে গ্রেডিয়েন্ট
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.center,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.6),
+                          Colors.transparent
+                        ],
+                      ),
+                    ),
+                  ),
+                  // নাম ও বয়স
+                  Positioned(
+                    bottom: 12,
+                    left: 12,
+                    right: 12,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  otherUser['name'] ?? '',
+                                  style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (isVerified) ...[
+                                const SizedBox(width: 5),
+                                const VerifiedBadge(size: 18),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ইনফো
+          Expanded(
+            flex: 4,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${otherUser['age'] ?? ''} • ${otherUser['district'] ?? ''}',
+                        style:
+                            const TextStyle(fontSize: 13, color: secondaryText),
+                      ),
+                      const SizedBox(height: 8),
+                      // AI Match Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: score >= 70
+                              ? Colors.green.withValues(alpha: 0.1)
+                              : (score >= 40
+                                  ? Colors.orange.withValues(alpha: 0.1)
+                                  : Colors.red.withValues(alpha: 0.1)),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: score >= 70
+                                ? Colors.green
+                                : (score >= 40 ? Colors.orange : Colors.red),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome,
+                              size: 14,
+                              color: score >= 70
+                                  ? Colors.green
+                                  : (score >= 40 ? Colors.orange : Colors.red),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              bn
+                                  ? 'AI ম্যাচ: ${score.toStringAsFixed(0)}%'
+                                  : 'AI Match: ${score.toStringAsFixed(0)}%',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: score >= 70
+                                    ? Colors.green
+                                    : (score >= 40
+                                        ? Colors.orange
+                                        : Colors.red),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _openProfile(otherUser, bn),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: primaryMaroon,
+                            side: BorderSide(
+                                color: primaryMaroon.withValues(alpha: 0.3)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                          child: Text(bn ? 'প্রোফাইল' : 'Profile',
+                              style: const TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: () => _openChat(otherUser, bn),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryMaroon,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                          child: Text(bn ? 'মেসেজ' : 'Message',
+                              style: const TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _imgPlaceholder() {
+    return Container(
+      color: lightMaroon,
+      child: const Center(
+          child: Icon(Icons.person, size: 80, color: primaryMaroon)),
     );
   }
 }
