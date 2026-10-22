@@ -1,12 +1,13 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; // ✅ ওয়েবের প্রিমিয়াম ফন্টের জন্য
+import 'package:google_fonts/google_fonts.dart'; // ✅ ওয়েবের প্রিমিয়াম ফন্টের জন্য
 
 import '../theme/colors.dart';
 import 'registration_screen.dart';
 import 'login_screen.dart';
 import 'package:flutter/foundation.dart'; // kIsWeb এর জন্য
 import 'web_registration_screen.dart'; // আপনার নতুন ফাইলটি
+import 'package:url_launcher/url_launcher.dart'; // ওয়েবে লিঙ্ক ওপেন করার জন্য
 
 // ============================================================
 // LANGUAGE
@@ -77,6 +78,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     super.dispose();
   }
 
+  // ব্রাউজারে লিংক ওপেন করার ফাংশন
+  Future<void> _launchURL(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -84,7 +93,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       builder: (context, child) {
         final bool bn = language.isBangla;
 
-        // ✅ এখানে চেক করা হচ্ছে এটি ওয়েব কিনা
+        // ✅ এখানে চেক করা হচ্ছে এটি ওয়েব কিনা
         if (kIsWeb) {
           return _buildWebLayout(bn);
         }
@@ -96,14 +105,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 
   // ============================================================
-  // 💻 ওয়েবের জন্য রোমান্টিক ও প্রিমিয়াম ডিজাইন
+  // 💻 ওয়েবের জন্য রোমান্টিক ও প্রিমিয়াম ডিজাইন
   // ============================================================
   Widget _buildWebLayout(bool bn) {
     return Scaffold(
       backgroundColor: const Color(0xFFFDFBF7),
       body: Row(
         children: [
-          // 🟢 বাম দিকের অংশ (রোমান্টিক ভিজ্যুয়াল)
+          // 🟢 বাম দিকের অংশ (রোমান্টিক ভিজ্যুয়াল)
           Expanded(
             flex: 6,
             child: Container(
@@ -215,7 +224,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               color: Colors.white,
               child: Stack(
                 children: [
-                  // ল্যাঙ্গুয়েজ টগল (উপরে ডানদিকে)
+                  // ল্যাঙ্গুয়েজ টগল (উপরে ডানদিকে)
                   Positioned(
                     top: 30,
                     right: 30,
@@ -378,19 +387,39 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
                           const SizedBox(height: 40),
 
-                          // প্রাইভেসি নোট
+                          // প্রাইভেসি নোট এবং পেজ লিঙ্কসমূহ
                           Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const Icon(Icons.verified_user_outlined,
                                   size: 18, color: Colors.grey),
                               const SizedBox(width: 8),
-                              Text(
-                                bn
-                                    ? 'আপনার গোপনীয়তা, আপনার পছন্দ'
-                                    : 'Your privacy, your choice',
-                                style: GoogleFonts.hindSiliguri(
-                                  fontSize: 14,
-                                  color: Colors.grey.shade600,
+                              InkWell(
+                                onTap: () => _launchURL(
+                                    'https://jibonsathimatrimony.com/privacy.html'),
+                                child: Text(
+                                  bn ? 'প্রাইভেসি পলিসি' : 'Privacy Policy',
+                                  style: GoogleFonts.hindSiliguri(
+                                    fontSize: 14,
+                                    color: primaryMaroon,
+                                    fontWeight: FontWeight.w600,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                              const Text(' • ',
+                                  style: TextStyle(color: Colors.grey)),
+                              InkWell(
+                                onTap: () => _launchURL(
+                                    'https://jibonsathimatrimony.com/terms.html'),
+                                child: Text(
+                                  bn ? 'শর্তাবলী' : 'Terms',
+                                  style: GoogleFonts.hindSiliguri(
+                                    fontSize: 14,
+                                    color: primaryMaroon,
+                                    fontWeight: FontWeight.w600,
+                                    decoration: TextDecoration.underline,
+                                  ),
                                 ),
                               ),
                             ],
@@ -409,7 +438,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 
   // ============================================================
-  // 📱 মোবাইল লেআউট (আপনার আগের কোড, কোনো পরিবর্তন নেই)
+  // 📱 মোবাইল লেআউট
   // ============================================================
   Widget _buildMobileLayout(bool bn) {
     return Scaffold(
@@ -689,6 +718,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       ),
                     ),
                     const SizedBox(height: 18),
+                    // মোবাইলের জন্য প্রাইভেসি ও টার্মস লিঙ্কসমূহ
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -698,15 +728,30 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                           color: Colors.grey.shade600,
                         ),
                         const SizedBox(width: 6),
-                        Flexible(
+                        InkWell(
+                          onTap: () => _launchURL(
+                              'https://jibonsathimatrimony.com/privacy.html'),
                           child: Text(
-                            bn
-                                ? 'আপনার গোপনীয়তা, আপনার পছন্দ'
-                                : 'Your privacy, your choice',
-                            textAlign: TextAlign.center,
+                            bn ? 'প্রাইভেসি পলিসি' : 'Privacy Policy',
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey.shade600,
+                              color: primaryMaroon,
+                              fontWeight: FontWeight.w600,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                        const Text(' • ', style: TextStyle(color: Colors.grey)),
+                        InkWell(
+                          onTap: () => _launchURL(
+                              'https://jibonsathimatrimony.com/terms.html'),
+                          child: Text(
+                            bn ? 'শর্তাবলী' : 'Terms',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: primaryMaroon,
+                              fontWeight: FontWeight.w600,
+                              decoration: TextDecoration.underline,
                             ),
                           ),
                         ),
