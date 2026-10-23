@@ -188,7 +188,7 @@ class _ChatListScreenState extends State<ChatListScreen>
   }
 
   // ============================================================
-  // BUILD LIST — Responsive
+  // BUILD LIST — Responsive (Web Grid / Mobile ListView)
   // ============================================================
   Widget _buildListFromDocs(
     List<QueryDocumentSnapshot> chats,
@@ -198,9 +198,19 @@ class _ChatListScreenState extends State<ChatListScreen>
   ) {
     if (chats.isEmpty) return _buildEmpty(bn, archived);
 
-    final listWidget = ListView.separated(
-      shrinkWrap: isDesktop,
-      physics: isDesktop ? const NeverScrollableScrollPhysics() : null,
+    if (isDesktop) {
+      return _buildWebLayout(chats, bn, archived);
+    } else {
+      return _buildMobileLayout(chats, bn, archived);
+    }
+  }
+
+  // ============================================================
+  // 📱 ১. মোবাইল লেআউট (হুবহু অক্ষত ListView)
+  // ============================================================
+  Widget _buildMobileLayout(
+      List<QueryDocumentSnapshot> chats, bool bn, bool archived) {
+    return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: chats.length,
       separatorBuilder: (_, __) => Divider(
@@ -210,38 +220,49 @@ class _ChatListScreenState extends State<ChatListScreen>
       ),
       itemBuilder: (context, i) => _buildChatTile(chats[i], bn, archived),
     );
+  }
 
-    // ✅ ওয়েবে সুন্দর ড্যাশবোর্ড লুক
-    if (isDesktop) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 900), // ম্যাক্স উইডথ
-            child: Container(
+  // ============================================================
+  // 💻 ২. ওয়েব লেআউট (প্রিমিয়াম গ্রিড ভিউ)
+  // ============================================================
+  Widget _buildWebLayout(
+      List<QueryDocumentSnapshot> chats, bool bn, bool archived) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3, // ৩টি কলাম
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              mainAxisExtent: 95, // কার্ডের উচ্চতা
+            ),
+            itemCount: chats.length,
+            itemBuilder: (context, i) => Container(
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
+                    color: primaryMaroon.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: listWidget,
+                borderRadius: BorderRadius.circular(16),
+                child: _buildChatTile(chats[i], bn, archived),
               ),
             ),
           ),
         ),
-      );
-    }
-
-    // মোবাইল লিস্ট
-    return listWidget;
+      ),
+    );
   }
 
   // ============================================================
@@ -319,6 +340,7 @@ class _ChatListScreenState extends State<ChatListScreen>
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Row(
                       children: [
@@ -650,8 +672,8 @@ class _ChatListScreenState extends State<ChatListScreen>
   // ============================================================
   Widget _buildAvatar(UserProfile user) {
     return Container(
-      width: 62,
-      height: 62,
+      width: 52,
+      height: 52,
       padding: const EdgeInsets.all(2),
       decoration: const BoxDecoration(
         shape: BoxShape.circle,
@@ -668,9 +690,9 @@ class _ChatListScreenState extends State<ChatListScreen>
                   user.photoUrl,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.person, color: primaryMaroon, size: 32),
+                      const Icon(Icons.person, color: primaryMaroon, size: 28),
                 )
-              : const Icon(Icons.person, color: primaryMaroon, size: 32),
+              : const Icon(Icons.person, color: primaryMaroon, size: 28),
         ),
       ),
     );
