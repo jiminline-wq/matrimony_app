@@ -1,8 +1,12 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../theme/colors.dart';
 import 'login_screen.dart';
+import 'verify_email_screen.dart'; // ✅ ইমেইল ভেরিফিকেশন স্ক্রিন ইমপোর্ট
 
 class WebRegistrationScreen extends StatefulWidget {
   const WebRegistrationScreen({super.key});
@@ -16,7 +20,7 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
   late AnimationController _animationController;
   bool _isHoveringButton = false;
 
-  // ✅ ১. ফর্ম এবং কন্ট্রোলার ডিক্লেয়ার করা হলো
+  // ✅ ফর্ম এবং কন্ট্রোলার
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
@@ -37,7 +41,6 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
   @override
   void dispose() {
     _animationController.dispose();
-    // ✅ কন্ট্রোলার ডিসপোজ
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
@@ -45,30 +48,106 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
     super.dispose();
   }
 
-  // ✅ রেজিস্ট্রেশন লজিক
+  // ============================================================
+  // ✅ মূল রেজিস্ট্রেশন লজিক (মোবাইলের সাথে সিঙ্ক করা)
+  // ============================================================
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
-    // এখানে আপনার Firebase Auth বা Firestore লজিক বসবে
-    await Future.delayed(const Duration(seconds: 2)); // ডেমো লোডিং
-
-    if (mounted) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('রেজিস্ট্রেশন লজিক এখানে কাজ করবে!')),
+    try {
+      // ১. Firebase Authentication
+      UserCredential cred =
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailCtrl.text.trim(),
+        password: _passCtrl.text.trim(),
       );
+
+      final user = cred.user;
+      if (user == null) throw Exception('User creation failed');
+
+      // ২. নাম আপডেট
+      await user.updateDisplayName(_nameCtrl.text.trim());
+
+      // ৩. Firestore-এ ডেটা সেভ
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'uid': user.uid,
+        'name': _nameCtrl.text.trim(),
+        'phone': _phoneCtrl.text.trim(),
+        'email': _emailCtrl.text.trim(),
+        'gender': '', // ওয়েব ফর্মে জেন্ডার নেই, পরের ধাপে সেট হবে
+        'religion': '', // ওয়েব ফর্মে রিলিজিয়ন নেই, পরের ধাপে সেট হবে
+        'profileCompleted': false, // ✅ জরুরি ফ্ল্যাগ
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // ৪. ইমেইল ভেরিফিকেশন পাঠানো ✅
+      await user.sendEmailVerification();
+
+      if (!mounted) return;
+
+      // ৫. Verify Email Screen-এ নেভিগেট করা
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => VerifyEmailScreen(
+            isBangla: true,
+            name: _nameCtrl.text.trim(),
+            gender: '',
+            religion: '',
+            email: _emailCtrl.text.trim(),
+            phone: _phoneCtrl.text.trim(),
+          ),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      String message = 'রেজিস্ট্রেশন ব্যর্থ হয়েছে!';
+      if (e.code == 'weak-password') {
+        message = 'পাসওয়ার্ডটি খুব দুর্বল।';
+      } else if (e.code == 'email-already-in-use') {
+        message = 'এই ইমেইল দিয়ে ইতিমধ্যেই একটি অ্যাকাউন্ট আছে।';
+      } else if (e.code == 'invalid-email') {
+        message = 'ইমেইলটি সঠিক নয়।';
+      } else if (e.code == 'network-request-failed') {
+        message = 'ইন্টারনেট সংযোগ চেক করুন।';
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('সমস্যা হয়েছে: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  // ============================================================
+  // BUILD
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          // ✅ স্ক্রিন ছোট হলে স্ক্রল করার ব্যবস্থা
+          // স্ক্রিন ছোট হলে স্ক্রল করার ব্যবস্থা
           if (constraints.maxWidth < 900) {
             return Center(
               child: SingleChildScrollView(
@@ -132,7 +211,7 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
       ),
       child: Stack(
         children: [
-          // ✅ ২. ভাসমান হার্ট অ্যানিমেশন ফিক্স (Positioned মুভ করা হয়েছে)
+          // ✅ ভাসমান হার্ট অ্যানিমেশন ফিক্স
           ...List.generate(5, (index) {
             return Positioned(
               left: 50.0 + (index * 100),
@@ -265,7 +344,6 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
           ),
         ],
       ),
-      // ✅ ৩. Form উইজেট দিয়ে র‍্যাপ করা হলো ভ্যালিডেশনের জন্য
       child: Form(
         key: _formKey,
         child: Column(
@@ -363,7 +441,6 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    // ✅ ৪. বাটনে রেজিস্ট্রেশন ফাংশন কল করা হলো
                     onTap: _isLoading ? null : _register,
                     borderRadius: BorderRadius.circular(12),
                     child: Center(
