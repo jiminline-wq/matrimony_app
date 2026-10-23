@@ -74,7 +74,7 @@ class _BoostScreenState extends State<BoostScreen> {
 
     final h = diff.inHours;
     final m = diff.inMinutes % 60;
-    if (h > 0) return '$h ঘন্টা $m মিনিট বাকি';
+    if (h > 0) return '$h घंटा $m মিনিট বাকি';
     return '$m মিনিট বাকি';
   }
 
