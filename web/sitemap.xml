@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+   
+   <!-- Home / Welcome Page -->
+   <url>
+      <loc>https://jibonsathimatrimony.com/</loc>
+      <lastmod>2024-05-20</lastmod>
+      <changefreq>daily</changefreq>
+      <priority>1.0</priority>
+   </url>
+
+   <!-- Login Page -->
+   <url>
+      <loc>https://jibonsathimatrimony.com/login</loc>
+      <lastmod>2024-05-20</lastmod>
+      <changefreq>monthly</changefreq>
+      <priority>0.8</priority>
+   </url>
+
+   <!-- Registration Page -->
+   <url>
+      <loc>https://jibonsathimatrimony.com/register</loc>
+      <lastmod>2024-05-20</lastmod>
+      <changefreq>monthly</changefreq>
+      <priority>0.9</priority>
+   </url>
+
+   <!-- Success Stories (Public) -->
+   <url>
+      <loc>https://jibonsathimatrimony.com/success-stories</loc>
+      <lastmod>2024-05-20</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
+   </url>
+
+   <!-- Privacy Policy -->
+   <url>
+      <loc>https://jibonsathimatrimony.com/privacy-policy</loc>
+      <lastmod>2024-05-20</lastmod>
+      <changefreq>yearly</changefreq>
+      <priority>0.3</priority>
+   </url>
+
+   <!-- Terms & Conditions -->
+   <url>
+      <loc>https://jibonsathimatrimony.com/terms</loc>
+      <lastmod>2024-05-20</lastmod>
+      <changefreq>yearly</changefreq>
+      <priority>0.3</priority>
+   </url>
+
+</urlset>
