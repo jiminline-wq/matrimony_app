@@ -2,31 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb er jonno
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
 import '../models/success_story.dart';
 import '../services/success_story_service.dart';
-import 'district_users_screen.dart';
 import '../utils/bd_districts.dart';
 import '../widgets/chat_icon_button.dart';
 import '../widgets/notification_bell.dart';
-import 'user_profile_view_screen.dart';
 import 'nearby_tab.dart';
 import 'discover_tab.dart';
 import 'matches_tab.dart';
-import 'who_liked_me_screen.dart';
-import 'shortlist_screen.dart';
-import 'story_details_screen.dart';
-import 'submit_story_screen.dart';
 import '../ads/banner_ad_widget.dart';
 import '../ads/ad_config.dart';
 import '../widgets/stories_row.dart';
 import '../widgets/profile_completeness_card.dart';
-import 'edit_profile_screen.dart';
 import '../services/engagement_service.dart';
 import '../widgets/streak_card.dart';
+
+// ✅ Deferred Loading Imports
+import 'district_users_screen.dart' deferred as district_users_lib;
+import 'user_profile_view_screen.dart' deferred as user_profile_view_lib;
+import 'who_liked_me_screen.dart' deferred as who_liked_me_lib;
+import 'shortlist_screen.dart' deferred as shortlist_lib;
+import 'story_details_screen.dart' deferred as story_details_lib;
+import 'submit_story_screen.dart' deferred as submit_story_lib;
+import 'edit_profile_screen.dart' deferred as edit_profile_lib;
 
 // ============================================================
 // HOME TAB — Matrimonial.com.bd style full home page
@@ -52,6 +54,30 @@ class _HomeTabState extends State<HomeTab> {
     super.initState();
     _loadMyInfo();
     _checkDailyStreak();
+  }
+
+  // ✅ DEFERRED NAVIGATION HELPER
+  Future<void> _navigateDeferred(
+    Future<void> libraryLoader,
+    Widget Function() screenBuilder,
+  ) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: primaryMaroon),
+      ),
+    );
+
+    await libraryLoader;
+
+    if (mounted) {
+      Navigator.pop(context); // Close loading dialog
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => screenBuilder()),
+      );
+    }
   }
 
   // ✅ ১. ডেইলি স্ট্রিক আপডেট করার ফাংশন
@@ -163,14 +189,12 @@ class _HomeTabState extends State<HomeTab> {
             isBangla: bn,
             maxPendingShown: 2,
             onEditTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EditProfileScreen(
-                    isBangla: bn,
-                    profile: UserProfile.fromMap(_myProfileData ?? {},
-                        docId: _myUid ?? ''),
-                  ),
+              _navigateDeferred(
+                edit_profile_lib.loadLibrary(),
+                () => edit_profile_lib.EditProfileScreen(
+                  isBangla: bn,
+                  profile: UserProfile.fromMap(_myProfileData ?? {},
+                      docId: _myUid ?? ''),
                 ),
               ).then((_) => _loadMyInfo());
             },
@@ -413,13 +437,19 @@ class _HomeTabState extends State<HomeTab> {
         'icon': Icons.favorite,
         'label': bn ? 'পছন্দ' : 'Likes',
         'color': const Color(0xFFE91E63),
-        'onTap': () => _navigateTo(WhoLikedMeScreen(isBangla: bn))
+        'onTap': () => _navigateDeferred(
+              who_liked_me_lib.loadLibrary(),
+              () => who_liked_me_lib.WhoLikedMeScreen(isBangla: bn),
+            )
       },
       {
         'icon': Icons.bookmark,
         'label': bn ? 'শর্টলিস্ট' : 'Shortlist',
         'color': const Color(0xFFFF9800),
-        'onTap': () => _navigateTo(ShortlistScreen(isBangla: bn))
+        'onTap': () => _navigateDeferred(
+              shortlist_lib.loadLibrary(),
+              () => shortlist_lib.ShortlistScreen(isBangla: bn),
+            )
       },
     ];
 
@@ -817,11 +847,12 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   void _openDistrictUsers(String district) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (_) => DistrictUsersScreen(
-              isBangla: widget.isBangla, district: district)),
+    _navigateDeferred(
+      district_users_lib.loadLibrary(),
+      () => district_users_lib.DistrictUsersScreen(
+        isBangla: widget.isBangla,
+        district: district,
+      ),
     );
   }
 
@@ -954,11 +985,14 @@ class _HomeTabState extends State<HomeTab> {
       final user = UserProfile.fromMap(
           doc.data() as Map<String, dynamic>? ?? {},
           docId: uid);
-      Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => UserProfileViewScreen(
-                  isBangla: widget.isBangla, user: user)));
+
+      _navigateDeferred(
+        user_profile_view_lib.loadLibrary(),
+        () => user_profile_view_lib.UserProfileViewScreen(
+          isBangla: widget.isBangla,
+          user: user,
+        ),
+      );
     } catch (e) {
       debugPrint('❌ _openProfileByUid error: $e');
     }
@@ -1188,10 +1222,10 @@ class _HomeTabState extends State<HomeTab> {
                     ),
                   ),
                   GestureDetector(
-                    onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => SubmitStoryScreen(isBangla: bn))),
+                    onTap: () => _navigateDeferred(
+                      submit_story_lib.loadLibrary(),
+                      () => submit_story_lib.SubmitStoryScreen(isBangla: bn),
+                    ),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
@@ -1552,10 +1586,13 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   void _openStoryDetails(SuccessStory story, bool bn) {
-    Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (_) => StoryDetailsScreen(story: story, isBangla: bn)));
+    _navigateDeferred(
+      story_details_lib.loadLibrary(),
+      () => story_details_lib.StoryDetailsScreen(
+        story: story,
+        isBangla: bn,
+      ),
+    );
   }
 
   // ============================================================
@@ -1673,11 +1710,12 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   void _openProfile(UserProfile user) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (_) =>
-              UserProfileViewScreen(isBangla: widget.isBangla, user: user)),
+    _navigateDeferred(
+      user_profile_view_lib.loadLibrary(),
+      () => user_profile_view_lib.UserProfileViewScreen(
+        isBangla: widget.isBangla,
+        user: user,
+      ),
     );
   }
 }
