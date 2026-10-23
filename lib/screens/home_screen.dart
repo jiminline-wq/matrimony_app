@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb
 
 import '../theme/colors.dart';
 import '../services/badge_service.dart';
@@ -13,8 +13,10 @@ import 'my_profile_tab.dart';
 import 'discover_tab.dart';
 import 'matches_tab.dart';
 import 'nearby_tab.dart';
-import 'call_screen.dart';
-import 'call_history_screen.dart';
+
+// ✅ Deferred loading imports
+import 'call_screen.dart' deferred as call_screen_lib;
+import 'call_history_screen.dart' deferred as call_history_lib;
 
 class HomeScreen extends StatefulWidget {
   final bool isBangla;
@@ -84,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _listenForIncomingCalls() {
-    _incomingCallSub = CallService.incomingCallStream().listen((snap) {
+    _incomingCallSub = CallService.incomingCallStream().listen((snap) async {
       if (!mounted || snap.docs.isEmpty || _isCallScreenOpen) return;
 
       final callDoc = snap.docs.first;
@@ -95,12 +97,17 @@ class _HomeScreenState extends State<HomeScreen> {
       _currentIncomingCallId = callId;
       _isCallScreenOpen = true;
 
+      // ✅ Deferred load CallScreen trước khi hiển thị
+      await call_screen_lib.loadLibrary();
+
+      if (!mounted) return;
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => CallScreen(
+            builder: (_) => call_screen_lib.CallScreen(
               isBangla: widget.isBangla,
               channelName: data['channelName'] ?? '',
               otherUserName: data['callerName'] ?? 'Unknown',
@@ -139,11 +146,23 @@ class _HomeScreenState extends State<HomeScreen> {
       DiscoverTab(isBangla: bn),
       NearbyTab(isBangla: bn),
       MatchesTab(isBangla: bn),
-      CallHistoryScreen(isBangla: bn),
+      // ✅ Tải deferred cho CallHistoryScreen thông qua FutureBuilder
+      FutureBuilder(
+        future: call_history_lib.loadLibrary(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.done) {
+            return call_history_lib.CallHistoryScreen(isBangla: bn);
+          }
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(color: primaryMaroon),
+            ),
+          );
+        },
+      ),
       MyProfileTab(isBangla: bn),
     ];
 
-    // ✅ ওয়েবের জন্য সাইডবার মেনু এবং মোবাইলের জন্য বটম নেভিগেশন
     return Scaffold(
       backgroundColor: warmWhite,
       body: kIsWeb
@@ -161,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ============================================================
-  // 💻 ওয়েবের জন্য সাইডবার (Navigation Rail)
+  // 💻 Sidebar trên Web (Navigation Rail)
   // ============================================================
   Widget _buildWebSidebar(bool bn) {
     return StreamBuilder<int>(
@@ -177,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
               backgroundColor: Colors.white,
               selectedIndex: _currentIndex,
               onDestinationSelected: _onTabTap,
-              extended: true, // ✅ ওয়েবে টেক্সট সহ দেখাবে
+              extended: true,
               minExtendedWidth: 200,
               selectedIconTheme: const IconThemeData(color: primaryMaroon),
               selectedLabelTextStyle: const TextStyle(
@@ -256,7 +275,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ============================================================
-  // 📱 মোবাইলের জন্য বটম নেভিগেশন
+  // 📱 Thanh điều hướng dưới cho Mobile
   // ============================================================
   Widget _buildMobileBottomNav(bool bn) {
     return Container(
@@ -344,7 +363,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// BadgedIcon উইজেটটি এখানে ডিক্লেয়ার করা হলো যাতে সাইডবার ও বটম বার দুটোতেই ব্যবহার করা যায়
 class BadgedIcon extends StatelessWidget {
   final IconData icon;
   final int count;
