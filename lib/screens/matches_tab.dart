@@ -5,14 +5,16 @@ import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
-import 'chat_screen.dart';
-import 'user_profile_view_screen.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/chat_icon_button.dart';
 import '../widgets/verified_badge.dart';
 import '../utils/ai_match_service.dart';
 import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
 import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
+
+// ✅ Deferred Loading Imports
+import 'chat_screen.dart' deferred as chat_screen_lib;
+import 'user_profile_view_screen.dart' deferred as user_profile_view_lib;
 
 // ============================================================
 // MATCHES TAB — AI Match Score Added
@@ -36,6 +38,30 @@ class _MatchesTabState extends State<MatchesTab> {
   void initState() {
     super.initState();
     loadMatches();
+  }
+
+  // ✅ DEFERRED NAVIGATION HELPER
+  Future<void> _navigateDeferred(
+    Future<void> libraryLoader,
+    Widget Function() screenBuilder,
+  ) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: primaryMaroon),
+      ),
+    );
+
+    await libraryLoader;
+
+    if (mounted) {
+      Navigator.pop(context); // Close loading dialog
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => screenBuilder()),
+      );
+    }
   }
 
   // ============================================================
@@ -131,15 +157,13 @@ class _MatchesTabState extends State<MatchesTab> {
   // OPEN CHAT
   // ============================================================
   void _openChat(Map<String, dynamic> otherUser, bool bn) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(
-          isBangla: bn,
-          otherUserId: otherUser['uid'] ?? '',
-          otherUserName: otherUser['name'] ?? '',
-          otherUserPhoto: otherUser['photoUrl'] ?? '',
-        ),
+    _navigateDeferred(
+      chat_screen_lib.loadLibrary(),
+      () => chat_screen_lib.ChatScreen(
+        isBangla: bn,
+        otherUserId: otherUser['uid'] ?? '',
+        otherUserName: otherUser['name'] ?? '',
+        otherUserPhoto: otherUser['photoUrl'] ?? '',
       ),
     );
   }
@@ -170,10 +194,12 @@ class _MatchesTabState extends State<MatchesTab> {
       if (!mounted) return;
 
       final profile = UserProfile.fromMap(doc.data()!, docId: doc.id);
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => UserProfileViewScreen(isBangla: bn, user: profile),
+      
+      _navigateDeferred(
+        user_profile_view_lib.loadLibrary(),
+        () => user_profile_view_lib.UserProfileViewScreen(
+          isBangla: bn,
+          user: profile,
         ),
       );
     } catch (e) {
@@ -704,41 +730,41 @@ class _MatchesTabState extends State<MatchesTab> {
                               : (score >= 40
                                   ? Colors.orange.withValues(alpha: 0.1)
                                   : Colors.red.withValues(alpha: 0.1)),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: score >= 70
+                              ? Colors.green
+                              : (score >= 40 ? Colors.orange : Colors.red),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.auto_awesome,
+                            size: 14,
                             color: score >= 70
                                 ? Colors.green
                                 : (score >= 40 ? Colors.orange : Colors.red),
-                            width: 1,
                           ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.auto_awesome,
-                              size: 14,
+                          const SizedBox(width: 4),
+                          Text(
+                            bn
+                                ? 'AI ম্যাচ: ${score.toStringAsFixed(0)}%'
+                                : 'AI Match: ${score.toStringAsFixed(0)}%',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
                               color: score >= 70
                                   ? Colors.green
-                                  : (score >= 40 ? Colors.orange : Colors.red),
+                                  : (score >= 40
+                                      ? Colors.orange
+                                      : Colors.red),
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              bn
-                                  ? 'AI ম্যাচ: ${score.toStringAsFixed(0)}%'
-                                  : 'AI Match: ${score.toStringAsFixed(0)}%',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: score >= 70
-                                    ? Colors.green
-                                    : (score >= 40
-                                        ? Colors.orange
-                                        : Colors.red),
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
