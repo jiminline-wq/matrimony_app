@@ -16,6 +16,14 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
   late AnimationController _animationController;
   bool _isHoveringButton = false;
 
+  // ✅ ১. ফর্ম এবং কন্ট্রোলার ডিক্লেয়ার করা হলো
+  final _formKey = GlobalKey<FormState>();
+  final _nameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  bool _isLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -29,7 +37,29 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
   @override
   void dispose() {
     _animationController.dispose();
+    // ✅ কন্ট্রোলার ডিসপোজ
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
     super.dispose();
+  }
+
+  // ✅ রেজিস্ট্রেশন লজিক
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    // এখানে আপনার Firebase Auth বা Firestore লজিক বসবে
+    await Future.delayed(const Duration(seconds: 2)); // ডেমো লোডিং
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('রেজিস্ট্রেশন লজিক এখানে কাজ করবে!')),
+      );
+    }
   }
 
   @override
@@ -38,11 +68,30 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
       backgroundColor: const Color(0xFFF8F9FA),
       body: LayoutBuilder(
         builder: (context, constraints) {
+          // ✅ স্ক্রিন ছোট হলে স্ক্রল করার ব্যবস্থা
           if (constraints.maxWidth < 900) {
-            return const Center(
-              child: Text('অনুগ্রহ করে কম্পিউটার বা বড় স্ক্রিন থেকে ওপেন করুন'),
+            return Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.monitor, size: 80, color: primaryMaroon),
+                    const SizedBox(height: 20),
+                    Text(
+                      'সেরা অভিজ্ঞতার জন্য কম্পিউটার বা বড় স্ক্রিন থেকে ওপেন করুন',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.hindSiliguri(
+                          fontSize: 18, color: primaryMaroon),
+                    ),
+                    const SizedBox(height: 30),
+                    _buildPremiumFormCard(),
+                  ],
+                ),
+              ),
             );
           }
+
           return Row(
             children: [
               // 🟢 বাম দিকের অংশ (Branding & Animation)
@@ -83,24 +132,27 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
       ),
       child: Stack(
         children: [
-          // ভাসমান হার্ট অ্যানিমেশন
+          // ✅ ২. ভাসমান হার্ট অ্যানিমেশন ফিক্স (Positioned মুভ করা হয়েছে)
           ...List.generate(5, (index) {
-            return AnimatedBuilder(
-              animation: _animationController,
-              builder: (context, child) {
-                final movement =
-                    math.sin(_animationController.value * math.pi * 2 + index) *
-                        20;
-                return Positioned(
-                  left: 50.0 + (index * 100),
-                  top: 100.0 + (index * 80) + movement,
-                  child: Opacity(
-                    opacity: 0.05 + (index * 0.02),
-                    child: const Icon(Icons.favorite,
-                        size: 100, color: Colors.white),
-                  ),
-                );
-              },
+            return Positioned(
+              left: 50.0 + (index * 100),
+              top: 100.0 + (index * 80),
+              child: AnimatedBuilder(
+                animation: _animationController,
+                builder: (context, child) {
+                  final movement = math.sin(
+                          _animationController.value * math.pi * 2 + index) *
+                      20;
+                  return Transform.translate(
+                    offset: Offset(0, movement),
+                    child: Opacity(
+                      opacity: 0.05 + (index * 0.02),
+                      child: const Icon(Icons.favorite,
+                          size: 100, color: Colors.white),
+                    ),
+                  );
+                },
+              ),
             );
           }),
 
@@ -213,129 +265,161 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'ফ্রি রেজিস্ট্রেশন',
-            style: GoogleFonts.hindSiliguri(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: deepMaroon,
+      // ✅ ৩. Form উইজেট দিয়ে র‍্যাপ করা হলো ভ্যালিডেশনের জন্য
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'ফ্রি রেজিস্ট্রেশন',
+              style: GoogleFonts.hindSiliguri(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: deepMaroon,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'আপনার তথ্য দিয়ে আজই অ্যাকাউন্ট তৈরি করুন।',
-            style: GoogleFonts.hindSiliguri(fontSize: 16, color: secondaryText),
-          ),
-          const SizedBox(height: 32),
+            const SizedBox(height: 8),
+            Text(
+              'আপনার তথ্য দিয়ে আজই অ্যাকাউন্ট তৈরি করুন।',
+              style:
+                  GoogleFonts.hindSiliguri(fontSize: 16, color: secondaryText),
+            ),
+            const SizedBox(height: 32),
 
-          // নাম এবং মোবাইল নম্বর পাশাপাশি
-          Row(
-            children: [
-              Expanded(
+            // নাম এবং মোবাইল নম্বর পাশাপাশি
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
                   child: _buildPremiumField(
-                      'আপনার পুরো নাম', Icons.person_outline)),
-              const SizedBox(width: 16),
-              Expanded(
-                  child:
-                      _buildPremiumField('মোবাইল নম্বর', Icons.phone_outlined)),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // ইমেইল
-          _buildPremiumField('ইমেইল অ্যাড্রেস', Icons.email_outlined),
-          const SizedBox(height: 20),
-
-          // পাসওয়ার্ড
-          _buildPremiumField('পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)', Icons.lock_outline,
-              isObscure: true),
-
-          const SizedBox(height: 32),
-
-          // প্রিমিয়াম হোভার বাটন
-          MouseRegion(
-            onEnter: (_) => setState(() => _isHoveringButton = true),
-            onExit: (_) => setState(() => _isHoveringButton = false),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: double.infinity,
-              height: 60,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: _isHoveringButton
-                      ? [primaryMaroon, deepMaroon]
-                      : [const Color(0xFFC59B4B), primaryMaroon],
-                ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryMaroon.withValues(
-                        alpha: _isHoveringButton ? 0.4 : 0.2),
-                    blurRadius: _isHoveringButton ? 20 : 10,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    // আপনার রেজিস্ট্রেশন লজিক এখানে বসবে
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Center(
-                    child: Text(
-                      'রেজিস্ট্রেশন সম্পন্ন করুন',
-                      style: GoogleFonts.hindSiliguri(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+                    'আপনার পুরো নাম',
+                    Icons.person_outline,
+                    controller: _nameCtrl,
+                    validator: (val) => val!.isEmpty ? 'নাম দিন' : null,
                   ),
                 ),
-              ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildPremiumField(
+                    'মোবাইল নম্বর',
+                    Icons.phone_outlined,
+                    controller: _phoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    validator: (val) =>
+                        val!.length < 11 ? '১১ ডিজিট দিন' : null,
+                  ),
+                ),
+              ],
             ),
-          ),
+            const SizedBox(height: 20),
 
-          const SizedBox(height: 20),
+            // ইমেইল
+            _buildPremiumField(
+              'ইমেইল অ্যাড্রেস',
+              Icons.email_outlined,
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              validator: (val) => !val!.contains('@') ? 'সঠিক ইমেইল দিন' : null,
+            ),
+            const SizedBox(height: 20),
 
-          // লগইন লিংক
-          Center(
-            child: TextButton(
-              onPressed: () {
-                // ✅ pop এর বদলে pushReplacement ব্যবহার করুন
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const LoginScreen(
-                        isBangla:
-                            true), // যেহেতু ওয়েব পেজটি বাংলায়, তাই true দেওয়া হলো
+            // পাসওয়ার্ড
+            _buildPremiumField(
+              'পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)',
+              Icons.lock_outline,
+              isObscure: true,
+              controller: _passCtrl,
+              validator: (val) =>
+                  val!.length < 6 ? 'কমপক্ষে ৬ অক্ষর দিন' : null,
+            ),
+
+            const SizedBox(height: 32),
+
+            // প্রিমিয়াম হোভার বাটন
+            MouseRegion(
+              onEnter: (_) => setState(() => _isHoveringButton = true),
+              onExit: (_) => setState(() => _isHoveringButton = false),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: double.infinity,
+                height: 60,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: _isHoveringButton
+                        ? [primaryMaroon, deepMaroon]
+                        : [const Color(0xFFC59B4B), primaryMaroon],
                   ),
-                );
-              },
-              child: RichText(
-                text: TextSpan(
-                  text: 'আগে থেকেই অ্যাকাউন্ট আছে? ',
-                  style: GoogleFonts.hindSiliguri(
-                      color: secondaryText, fontSize: 15),
-                  children: [
-                    TextSpan(
-                      text: 'লগইন করুন',
-                      style: GoogleFonts.hindSiliguri(
-                        color: primaryMaroon,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryMaroon.withValues(
+                          alpha: _isHoveringButton ? 0.4 : 0.2),
+                      blurRadius: _isHoveringButton ? 20 : 10,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    // ✅ ৪. বাটনে রেজিস্ট্রেশন ফাংশন কল করা হলো
+                    onTap: _isLoading ? null : _register,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Center(
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : Text(
+                              'রেজিস্ট্রেশন সম্পন্ন করুন',
+                              style: GoogleFonts.hindSiliguri(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
+
+            const SizedBox(height: 20),
+
+            // লগইন লিংক
+            Center(
+              child: TextButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LoginScreen(isBangla: true),
+                    ),
+                  );
+                },
+                child: RichText(
+                  text: TextSpan(
+                    text: 'আগে থেকেই অ্যাকাউন্ট আছে? ',
+                    style: GoogleFonts.hindSiliguri(
+                        color: secondaryText, fontSize: 15),
+                    children: [
+                      TextSpan(
+                        text: 'লগইন করুন',
+                        style: GoogleFonts.hindSiliguri(
+                          color: primaryMaroon,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -343,17 +427,26 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
   // ============================================================
   // ইনপুট ফিল্ড ডিজাইন
   // ============================================================
-  Widget _buildPremiumField(String label, IconData icon,
-      {bool isObscure = false}) {
+  Widget _buildPremiumField(
+    String label,
+    IconData icon, {
+    bool isObscure = false,
+    TextEditingController? controller,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+  }) {
     return TextFormField(
+      controller: controller,
       obscureText: isObscure,
+      keyboardType: keyboardType,
+      validator: validator,
       style: GoogleFonts.hindSiliguri(fontSize: 16),
       decoration: InputDecoration(
         labelText: label,
         labelStyle: GoogleFonts.hindSiliguri(color: secondaryText),
         prefixIcon: Icon(icon, color: primaryMaroon.withValues(alpha: 0.7)),
         filled: true,
-        fillColor: const Color(0xFFF9F9F9), // খুব হালকা ধূসর ব্যাকগ্রাউন্ড
+        fillColor: const Color(0xFFF9F9F9),
         contentPadding:
             const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
         enabledBorder: OutlineInputBorder(
@@ -363,6 +456,14 @@ class _WebRegistrationScreenState extends State<WebRegistrationScreen>
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: primaryMaroon, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red, width: 2),
         ),
       ),
     );
