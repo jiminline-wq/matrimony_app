@@ -29,11 +29,12 @@ dependencies:
   # Media
   image_picker: ^1.1.2
   file_picker: ^8.1.6
-  cached_network_image: ^3.4.1
   video_player: ^2.9.2
   record: ^7.1.1
   audioplayers: ^6.0.0
   path_provider: ^2.1.4
+  cached_network_image: ^3.4.1
+  cached_network_image_platform_interface: ^4.1.1
 
 
   # Chat / UI

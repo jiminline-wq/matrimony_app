@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../models/story.dart';
 import '../screens/create_story_screen.dart';
@@ -340,8 +341,8 @@ class _StoryMediaCard extends StatelessWidget {
                       children: [
                         // ===== MEDIA (story thumbnail OR profile) =====
                         if (backgroundImage.isNotEmpty)
-                          CachedNetworkImage(
-                            imageUrl: backgroundImage,
+                          AppNetworkImage(
+                            backgroundImage,
                             fit: BoxFit.cover,
                             placeholder: (_, __) => Container(
                               color: lightMaroon,
@@ -380,8 +381,8 @@ class _StoryMediaCard extends StatelessWidget {
                               ),
                               child: ClipOval(
                                 child: userPhoto.isNotEmpty
-                                    ? CachedNetworkImage(
-                                        imageUrl: userPhoto,
+                                    ? AppNetworkImage(
+                                        userPhoto,
                                         fit: BoxFit.cover,
                                       )
                                     : const Icon(
@@ -458,8 +459,8 @@ class _StoryMediaCard extends StatelessWidget {
                             ),
                             child: ClipOval(
                               child: userPhoto.isNotEmpty
-                                  ? CachedNetworkImage(
-                                      imageUrl: userPhoto,
+                                  ? AppNetworkImage(
+                                      userPhoto,
                                       fit: BoxFit.cover,
                                     )
                                   : const Icon(

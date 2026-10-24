@@ -1,0 +1,75 @@
+import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cached_network_image_platform_interface/cached_network_image_platform_interface.dart';
+import 'package:flutter/material.dart';
+
+class AppNetworkImage extends StatelessWidget {
+  final String imageUrl;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+  final BorderRadius? borderRadius;
+  final Duration fadeInDuration;
+  final Widget Function(BuildContext, String)? placeholder;
+  final Widget Function(BuildContext, String, Object)? errorWidget;
+  final ImageErrorWidgetBuilder? errorBuilder;
+  final ImageLoadingBuilder? loadingBuilder;
+
+  const AppNetworkImage(
+    this.imageUrl, {
+    // 👈 positional
+    super.key,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+    this.borderRadius,
+    this.fadeInDuration = const Duration(milliseconds: 300),
+    this.placeholder,
+    this.errorWidget,
+    this.errorBuilder,
+    this.loadingBuilder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isHttp =
+        imageUrl.startsWith('http://') || imageUrl.startsWith('https://');
+    final isBlob = imageUrl.startsWith('blob:') || imageUrl.startsWith('data:');
+    final isFile = !isHttp && !isBlob && File(imageUrl).existsSync();
+
+    Widget img;
+    if (isHttp) {
+      img = CachedNetworkImage(
+        imageUrl: imageUrl,
+        width: width,
+        height: height,
+        fit: fit,
+        fadeInDuration: fadeInDuration,
+        imageRenderMethodForWeb: ImageRenderMethodForWeb.HttpGet, // 🔑 ফিক্স
+        placeholder: placeholder,
+        errorWidget: errorWidget,
+      );
+    } else if (isFile) {
+      img = Image.file(
+        File(imageUrl),
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: errorBuilder,
+      );
+    } else {
+      img = Image.network(
+        imageUrl,
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: errorBuilder,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+
+    return borderRadius != null
+        ? ClipRRect(borderRadius: borderRadius!, child: img)
+        : img;
+  }
+}

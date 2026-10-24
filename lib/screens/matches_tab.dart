@@ -13,6 +13,7 @@ import '../widgets/verified_badge.dart';
 import '../utils/ai_match_service.dart';
 import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
 import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 // ============================================================
 // MATCHES TAB — AI Match Score Added
@@ -365,7 +366,7 @@ class _MatchesTabState extends State<MatchesTab> {
                 ),
                 child: ClipOval(
                   child: (otherUser['photoUrl'] as String? ?? '').isNotEmpty
-                      ? Image.network(
+                      ? AppNetworkImage(
                           otherUser['photoUrl'],
                           width: 70,
                           height: 70,
@@ -619,7 +620,7 @@ class _MatchesTabState extends State<MatchesTab> {
                 fit: StackFit.expand,
                 children: [
                   (otherUser['photoUrl'] as String? ?? '').isNotEmpty
-                      ? Image.network(
+                      ? AppNetworkImage(
                           otherUser['photoUrl'],
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => _imgPlaceholder(),

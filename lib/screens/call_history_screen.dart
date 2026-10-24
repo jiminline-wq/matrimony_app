@@ -10,6 +10,7 @@ import 'call_screen.dart';
 import 'chat_screen.dart';
 import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
 import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 // ============================================================
 // CALL HISTORY SCREEN — 4 tabs
@@ -331,7 +332,7 @@ class _CallHistoryScreenState extends State<CallHistoryScreen>
                       ),
                       child: ClipOval(
                         child: otherPhoto.isNotEmpty
-                            ? Image.network(
+                            ? AppNetworkImage(
                                 otherPhoto,
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => const Icon(

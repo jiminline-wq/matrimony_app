@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../models/story.dart';
 import '../services/story_service.dart';
@@ -278,7 +279,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen> {
           child: Center(
             child: _pickedType == StoryMediaType.image
                 ? (kIsWeb
-                    ? Image.network(_pickedFile!.path, fit: BoxFit.contain)
+                    ? AppNetworkImage(_pickedFile!.path, fit: BoxFit.contain)
                     : Image.file(File(_pickedFile!.path), fit: BoxFit.contain))
                 : _videoPreview(),
           ),

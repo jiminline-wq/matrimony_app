@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import 'voice_message_bubble.dart';
 
@@ -422,8 +423,9 @@ class _PremiumMessageBubbleState extends State<PremiumMessageBubble> {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 11.5,
-              color:
-                  widget.isMe ? Colors.white.withValues(alpha: 0.9) : _textColorOther,
+              color: widget.isMe
+                  ? Colors.white.withValues(alpha: 0.9)
+                  : _textColorOther,
             ),
           ),
         ],
@@ -497,8 +499,8 @@ class _PremiumMessageBubbleState extends State<PremiumMessageBubble> {
         borderRadius: BorderRadius.circular(6),
         child: Hero(
           tag: 'img_${widget.messageId}',
-          child: CachedNetworkImage(
-            imageUrl: url,
+          child: AppNetworkImage(
+            url,
             width: 230,
             fit: BoxFit.cover,
             fadeInDuration: Duration.zero,
@@ -758,8 +760,8 @@ class _FullScreenImage extends StatelessWidget {
         child: InteractiveViewer(
           minScale: 0.5,
           maxScale: 4.0,
-          child: CachedNetworkImage(
-            imageUrl: url,
+          child: AppNetworkImage(
+            url,
             fit: BoxFit.contain,
             placeholder: (_, __) => const Center(
               child: CircularProgressIndicator(color: Colors.white),

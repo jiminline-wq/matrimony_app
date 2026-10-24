@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../models/story.dart';
 import '../services/story_service.dart';
@@ -335,8 +336,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                       child: CircularProgressIndicator(color: Colors.white));
                 }
                 return Center(
-                  child: CachedNetworkImage(
-                    imageUrl: item.story.mediaUrl,
+                  child: AppNetworkImage(
+                    item.story.mediaUrl,
                     fit: BoxFit.contain,
                     placeholder: (_, __) => const Center(
                       child: CircularProgressIndicator(color: Colors.white),
@@ -409,11 +410,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                             color: Colors.grey.shade700,
                             child: const Icon(Icons.person,
                                 color: Colors.white, size: 20))
-                        : CachedNetworkImage(
-                            imageUrl: _flat[_index].user.userPhoto,
-                            width: 36,
-                            height: 36,
-                            fit: BoxFit.cover),
+                        : AppNetworkImage(_flat[_index].user.userPhoto,
+                            width: 36, height: 36, fit: BoxFit.cover),
                   ),
                   const SizedBox(width: 10),
                   Expanded(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../services/notification_service.dart';
@@ -505,7 +506,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
 
     if (notif.fromPhotoUrl.isNotEmpty) {
       photo = ClipOval(
-        child: Image.network(
+        child: AppNetworkImage(
           notif.fromPhotoUrl,
           width: 52,
           height: 52,

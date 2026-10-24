@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -63,9 +64,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   // PHOTO GALLERY STATE
   // ============================================================
 
-  File? newProfileImage;                // নতুন main photo (ঐচ্ছিক)
-  List<File> newAdditionalImages = [];  // নতুন additional photos
-  List<String> existingPhotoUrls = [];  // Firestore থেকে আসা photos
+  File? newProfileImage; // নতুন main photo (ঐচ্ছিক)
+  List<File> newAdditionalImages = []; // নতুন additional photos
+  List<String> existingPhotoUrls = []; // Firestore থেকে আসা photos
 
   final ImagePicker imagePicker = ImagePicker();
 
@@ -88,18 +89,68 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   ];
 
   final List<String> districts = [
-    'Bagerhat', 'Bandarban', 'Barguna', 'Barishal', 'Bhola', 'Bogura',
-    'Brahmanbaria', 'Chandpur', 'Chattogram', 'Chuadanga', "Cox's Bazar",
-    'Cumilla', 'Dhaka', 'Dinajpur', 'Faridpur', 'Feni', 'Gaibandha',
-    'Gazipur', 'Gopalganj', 'Habiganj', 'Jamalpur', 'Jashore',
-    'Jhalokathi', 'Jhenaidah', 'Joypurhat', 'Khagrachhari', 'Khulna',
-    'Kishoreganj', 'Kurigram', 'Kushtia', 'Lakshmipur', 'Lalmonirhat',
-    'Madaripur', 'Magura', 'Manikganj', 'Meherpur', 'Moulvibazar',
-    'Munshiganj', 'Mymensingh', 'Naogaon', 'Narail', 'Narayanganj',
-    'Narsingdi', 'Natore', 'Netrokona', 'Nilphamari', 'Noakhali',
-    'Pabna', 'Panchagarh', 'Patuakhali', 'Pirojpur', 'Rajbari',
-    'Rajshahi', 'Rangamati', 'Rangpur', 'Satkhira', 'Shariatpur',
-    'Sherpur', 'Sirajganj', 'Sunamganj', 'Sylhet', 'Tangail',
+    'Bagerhat',
+    'Bandarban',
+    'Barguna',
+    'Barishal',
+    'Bhola',
+    'Bogura',
+    'Brahmanbaria',
+    'Chandpur',
+    'Chattogram',
+    'Chuadanga',
+    "Cox's Bazar",
+    'Cumilla',
+    'Dhaka',
+    'Dinajpur',
+    'Faridpur',
+    'Feni',
+    'Gaibandha',
+    'Gazipur',
+    'Gopalganj',
+    'Habiganj',
+    'Jamalpur',
+    'Jashore',
+    'Jhalokathi',
+    'Jhenaidah',
+    'Joypurhat',
+    'Khagrachhari',
+    'Khulna',
+    'Kishoreganj',
+    'Kurigram',
+    'Kushtia',
+    'Lakshmipur',
+    'Lalmonirhat',
+    'Madaripur',
+    'Magura',
+    'Manikganj',
+    'Meherpur',
+    'Moulvibazar',
+    'Munshiganj',
+    'Mymensingh',
+    'Naogaon',
+    'Narail',
+    'Narayanganj',
+    'Narsingdi',
+    'Natore',
+    'Netrokona',
+    'Nilphamari',
+    'Noakhali',
+    'Pabna',
+    'Panchagarh',
+    'Patuakhali',
+    'Pirojpur',
+    'Rajbari',
+    'Rajshahi',
+    'Rangamati',
+    'Rangpur',
+    'Satkhira',
+    'Shariatpur',
+    'Sherpur',
+    'Sirajganj',
+    'Sunamganj',
+    'Sylhet',
+    'Tangail',
     'Thakurgaon',
   ];
 
@@ -111,26 +162,67 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   ];
 
   final List<String> preferredAgeOptions = [
-    '18 - 22', '23 - 27', '28 - 32', '33 - 37', '38 - 42', '43 - 50',
+    '18 - 22',
+    '23 - 27',
+    '28 - 32',
+    '33 - 37',
+    '38 - 42',
+    '43 - 50',
     'Any Age',
   ];
 
   final List<String> preferredReligionOptions = [
-    'Islam', 'Hinduism', 'Christianity', 'Buddhism', 'Other',
+    'Islam',
+    'Hinduism',
+    'Christianity',
+    'Buddhism',
+    'Other',
     'Any Religion',
   ];
 
   final List<String> preferredEducationOptions = [
-    'SSC', 'HSC', 'Diploma', 'Bachelor', 'BSc', 'BSc in Engineering',
-    'BA', 'BBA', 'BSS', 'BCom', 'LLB', 'MBBS', 'BDS', 'BPharm',
-    'BSc Nursing', 'Master', 'MSc', 'MA', 'MBA', 'MSS', 'LLM',
-    'MPharm', 'MPH', 'MPhil', 'PhD', 'Any Education',
+    'SSC',
+    'HSC',
+    'Diploma',
+    'Bachelor',
+    'BSc',
+    'BSc in Engineering',
+    'BA',
+    'BBA',
+    'BSS',
+    'BCom',
+    'LLB',
+    'MBBS',
+    'BDS',
+    'BPharm',
+    'BSc Nursing',
+    'Master',
+    'MSc',
+    'MA',
+    'MBA',
+    'MSS',
+    'LLM',
+    'MPharm',
+    'MPH',
+    'MPhil',
+    'PhD',
+    'Any Education',
   ];
 
   final List<String> preferredProfessionOptions = [
-    'Government Job', 'Private Job', 'Teacher', 'Engineer', 'Doctor',
-    'Banker', 'Lawyer', 'Freelancer', 'Business', 'Student',
-    'House Maker', 'Other', 'Any Profession',
+    'Government Job',
+    'Private Job',
+    'Teacher',
+    'Engineer',
+    'Doctor',
+    'Banker',
+    'Lawyer',
+    'Freelancer',
+    'Business',
+    'Student',
+    'House Maker',
+    'Other',
+    'Any Profession',
   ];
 
   // ============================================================
@@ -201,8 +293,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> pickAdditionalPhoto() async {
-    final totalPhotos =
-        existingPhotoUrls.length + newAdditionalImages.length;
+    final totalPhotos = existingPhotoUrls.length + newAdditionalImages.length;
 
     if (totalPhotos >= 6) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -649,7 +740,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(14),
-                        child: Image.network(
+                        child: AppNetworkImage(
                           url,
                           width: 110,
                           height: 130,
@@ -821,7 +912,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     return Scaffold(
       backgroundColor: warmWhite,
-
       appBar: AppBar(
         backgroundColor: warmWhite,
         elevation: 0,
@@ -842,14 +932,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
         ],
       ),
-
       body: SafeArea(
         child: Form(
           key: formKey,
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
             children: [
-
               // ==================================================
               // PHOTO GALLERY (NEW)
               // ==================================================
@@ -958,11 +1046,36 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 icon: Icons.height,
                 value: height,
                 items: const [
-                  "4'6\"", "4'7\"", "4'8\"", "4'9\"", "4'10\"", "4'11\"",
-                  "5'0\"", "5'1\"", "5'2\"", "5'3\"", "5'4\"", "5'5\"",
-                  "5'6\"", "5'7\"", "5'8\"", "5'9\"", "5'10\"", "5'11\"",
-                  "6'0\"", "6'1\"", "6'2\"", "6'3\"", "6'4\"", "6'5\"",
-                  "6'6\"", "6'7\"", "6'8\"", "6'9\"", "6'10\"", "6'11\"",
+                  "4'6\"",
+                  "4'7\"",
+                  "4'8\"",
+                  "4'9\"",
+                  "4'10\"",
+                  "4'11\"",
+                  "5'0\"",
+                  "5'1\"",
+                  "5'2\"",
+                  "5'3\"",
+                  "5'4\"",
+                  "5'5\"",
+                  "5'6\"",
+                  "5'7\"",
+                  "5'8\"",
+                  "5'9\"",
+                  "5'10\"",
+                  "5'11\"",
+                  "6'0\"",
+                  "6'1\"",
+                  "6'2\"",
+                  "6'3\"",
+                  "6'4\"",
+                  "6'5\"",
+                  "6'6\"",
+                  "6'7\"",
+                  "6'8\"",
+                  "6'9\"",
+                  "6'10\"",
+                  "6'11\"",
                   "7'0\"",
                 ],
                 onChanged: (value) {
@@ -1027,9 +1140,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 decoration: fieldDecoration(
                   label: bn ? 'শিক্ষাগত যোগ্যতা' : 'Education',
                   icon: Icons.school_outlined,
-                  hint: bn
-                      ? 'যেমন: BSc in CSE, DU'
-                      : 'e.g. BSc in CSE, DU',
+                  hint: bn ? 'যেমন: BSc in CSE, DU' : 'e.g. BSc in CSE, DU',
                 ),
               ),
 
@@ -1041,9 +1152,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 decoration: fieldDecoration(
                   label: bn ? 'পেশা' : 'Profession',
                   icon: Icons.work_outline,
-                  hint: bn
-                      ? 'যেমন: Software Engineer'
-                      : 'e.g. Software Engineer',
+                  hint:
+                      bn ? 'যেমন: Software Engineer' : 'e.g. Software Engineer',
                 ),
               ),
 
@@ -1075,9 +1185,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
               sectionHeader(
                 icon: Icons.favorite_outline,
-                title: bn
-                    ? 'জীবনসঙ্গীর পছন্দ'
-                    : 'Partner Preference',
+                title: bn ? 'জীবনসঙ্গীর পছন্দ' : 'Partner Preference',
               ),
 
               buildDropdown(
@@ -1093,9 +1201,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const SizedBox(height: 14),
 
               buildDropdown(
-                label: bn
-                    ? 'পছন্দের ধর্ম'
-                    : 'Preferred Religion',
+                label: bn ? 'পছন্দের ধর্ম' : 'Preferred Religion',
                 icon: Icons.auto_awesome_outlined,
                 value: preferredReligion,
                 items: preferredReligionOptions,
@@ -1107,9 +1213,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const SizedBox(height: 14),
 
               buildDropdown(
-                label: bn
-                    ? 'পছন্দের শিক্ষা'
-                    : 'Preferred Education',
+                label: bn ? 'পছন্দের শিক্ষা' : 'Preferred Education',
                 icon: Icons.school_outlined,
                 value: preferredEducation,
                 items: preferredEducationOptions,
@@ -1121,9 +1225,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const SizedBox(height: 14),
 
               buildDropdown(
-                label: bn
-                    ? 'পছন্দের পেশা'
-                    : 'Preferred Profession',
+                label: bn ? 'পছন্দের পেশা' : 'Preferred Profession',
                 icon: Icons.work_outline,
                 value: preferredProfession,
                 items: preferredProfessionOptions,

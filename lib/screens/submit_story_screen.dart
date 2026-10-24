@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../services/success_story_service.dart';
@@ -639,8 +640,8 @@ class _SubmitStoryScreenState extends State<SubmitStoryScreen> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: CachedNetworkImage(
-                        imageUrl: _photoUrls[i],
+                      child: AppNetworkImage(
+                        _photoUrls[i],
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: double.infinity,

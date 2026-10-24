@@ -14,6 +14,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -1575,8 +1576,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (type == 'image' && mediaUrl.isNotEmpty) {
       previewThumb = ClipRRect(
         borderRadius: BorderRadius.circular(6),
-        child: CachedNetworkImage(
-          imageUrl: mediaUrl,
+        child: AppNetworkImage(
+          mediaUrl,
           width: 40,
           height: 40,
           fit: BoxFit.cover,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -376,7 +377,7 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
                             border: Border.all(color: primaryGold, width: 2)),
                         child: ClipOval(
                           child: profile.photoUrl.isNotEmpty
-                              ? Image.network(profile.photoUrl,
+                              ? AppNetworkImage(profile.photoUrl,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) => const Icon(
                                       Icons.person,
@@ -548,7 +549,7 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
                                 borderRadius: const BorderRadius.vertical(
                                     top: Radius.circular(20)),
                                 child: profile.photoUrl.isNotEmpty
-                                    ? Image.network(profile.photoUrl,
+                                    ? AppNetworkImage(profile.photoUrl,
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, __, ___) =>
                                             _imgPlaceholder())

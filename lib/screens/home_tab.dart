@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb er jonno
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -255,8 +256,8 @@ class _HomeTabState extends State<HomeTab> {
             ),
             child: ClipOval(
               child: _myPhoto != null && _myPhoto!.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: _myPhoto!,
+                  ? AppNetworkImage(
+                      _myPhoto!,
                       fit: BoxFit.cover,
                       placeholder: (_, __) => Container(color: lightMaroon),
                       errorWidget: (_, __, ___) => const Icon(Icons.person,
@@ -593,8 +594,8 @@ class _HomeTabState extends State<HomeTab> {
             fit: StackFit.expand,
             children: [
               user.photoUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: user.photoUrl,
+                  ? AppNetworkImage(
+                      user.photoUrl,
                       fit: BoxFit.cover,
                       placeholder: (_, __) => Container(color: lightMaroon),
                       errorWidget: (_, __, ___) => Container(
@@ -942,8 +943,8 @@ class _HomeTabState extends State<HomeTab> {
                     shape: BoxShape.circle, color: Colors.white),
                 child: ClipOval(
                   child: photoUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: photoUrl,
+                      ? AppNetworkImage(
+                          photoUrl,
                           fit: BoxFit.cover,
                           placeholder: (_, __) => Container(color: lightMaroon),
                           errorWidget: (_, __, ___) => Container(
@@ -1117,8 +1118,8 @@ class _HomeTabState extends State<HomeTab> {
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(14)),
                 child: user.photoUrl.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: user.photoUrl,
+                    ? AppNetworkImage(
+                        user.photoUrl,
                         fit: BoxFit.cover,
                         width: double.infinity,
                         placeholder: (_, __) => Container(color: lightMaroon),
@@ -1314,8 +1315,8 @@ class _HomeTabState extends State<HomeTab> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    CachedNetworkImage(
-                      imageUrl: story.primaryPhoto,
+                    AppNetworkImage(
+                      story.primaryPhoto,
                       fit: BoxFit.cover,
                       placeholder: (_, __) => Container(color: lightMaroon),
                       errorWidget: (_, __, ___) => Container(

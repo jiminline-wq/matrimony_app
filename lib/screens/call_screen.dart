@@ -11,6 +11,7 @@ import '../services/agora_service.dart';
 import '../services/call_service.dart';
 import '../services/ring_service.dart';
 import '../services/chat_service.dart';
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 class CallScreen extends StatefulWidget {
   final bool isBangla;
@@ -493,7 +494,7 @@ class _CallScreenState extends State<CallScreen> {
                   child: ClipOval(
                     child: widget.otherUserPhoto != null &&
                             widget.otherUserPhoto!.isNotEmpty
-                        ? Image.network(
+                        ? AppNetworkImage(
                             widget.otherUserPhoto!,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => const Icon(
@@ -719,7 +720,7 @@ class _CallScreenState extends State<CallScreen> {
                   child: ClipOval(
                     child: widget.otherUserPhoto != null &&
                             widget.otherUserPhoto!.isNotEmpty
-                        ? Image.network(
+                        ? AppNetworkImage(
                             widget.otherUserPhoto!,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => const Icon(
@@ -793,7 +794,7 @@ class _CallScreenState extends State<CallScreen> {
               child: ClipOval(
                 child: widget.otherUserPhoto != null &&
                         widget.otherUserPhoto!.isNotEmpty
-                    ? Image.network(
+                    ? AppNetworkImage(
                         widget.otherUserPhoto!,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => const Icon(

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -277,8 +278,7 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(14),
                   child: user.photoUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: user.photoUrl,
+                      ? AppNetworkImage(user.photoUrl,
                           fit: BoxFit.cover,
                           errorWidget: (_, __, ___) => const Icon(Icons.person,
                               size: 40, color: primaryMaroon))
@@ -403,8 +403,8 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
                                 borderRadius: const BorderRadius.vertical(
                                     top: Radius.circular(20)),
                                 child: user.photoUrl.isNotEmpty
-                                    ? CachedNetworkImage(
-                                        imageUrl: user.photoUrl,
+                                    ? AppNetworkImage(
+                                        user.photoUrl,
                                         fit: BoxFit.cover,
                                         errorWidget: (_, __, ___) =>
                                             _imgPlaceholder(),

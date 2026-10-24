@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
-
+import 'package:matrimony_app/widgets/app_network_image.dart';
 import '../theme/colors.dart';
 import '../services/referral_service.dart';
 
@@ -73,15 +74,15 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
     final message = bn
         ? '💕 জীবন সাথী matrimony app এ যোগ দিন!\n\n'
-              'আমার referral code: $_code\n\n'
-              'Code দিয়ে register করলে আপনি পাবেন free boost এবং '
-              'আমি পাবো 24-hour boost।\n\n'
-              'App: https://jibonsathi.app'
+            'আমার referral code: $_code\n\n'
+            'Code দিয়ে register করলে আপনি পাবেন free boost এবং '
+            'আমি পাবো 24-hour boost।\n\n'
+            'App: https://jibonsathi.app'
         : '💕 Join Jibon Sathi matrimony app!\n\n'
-              'My referral code: $_code\n\n'
-              'Use my code when you register and get a boost. '
-              'I\'ll get a 24-hour boost too!\n\n'
-              'App: https://jibonsathi.app';
+            'My referral code: $_code\n\n'
+            'Use my code when you register and get a boost. '
+            'I\'ll get a 24-hour boost too!\n\n'
+            'App: https://jibonsathi.app';
 
     try {
       await Share.share(message, subject: 'Jibon Sathi Referral');
@@ -498,7 +499,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
             radius: 22,
             backgroundColor: lightMaroon,
             backgroundImage: (item['photoUrl'] as String).isNotEmpty
-                ? NetworkImage(item['photoUrl'])
+                ? CachedNetworkImageProvider(item['photoUrl'])
                 : null,
             child: (item['photoUrl'] as String).isEmpty
                 ? const Icon(Icons.person, color: primaryMaroon, size: 22)

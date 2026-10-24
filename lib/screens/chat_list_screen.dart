@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -11,6 +12,7 @@ import '../widgets/verified_badge.dart';
 import 'chat_screen.dart';
 import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
 import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 // ============================================================
 // CHAT LIST SCREEN — Delete + Archive
@@ -494,7 +496,7 @@ class _ChatListScreenState extends State<ChatListScreen>
                         radius: 20,
                         backgroundColor: lightMaroon,
                         backgroundImage: otherUser.photoUrl.isNotEmpty
-                            ? NetworkImage(otherUser.photoUrl)
+                            ? CachedNetworkImageProvider(otherUser.photoUrl)
                             : null,
                         child: otherUser.photoUrl.isEmpty
                             ? const Icon(
@@ -686,10 +688,10 @@ class _ChatListScreenState extends State<ChatListScreen>
         ),
         child: ClipOval(
           child: user.photoUrl.isNotEmpty
-              ? Image.network(
+              ? AppNetworkImage(
                   user.photoUrl,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
+                  errorWidget: (_, __, ___) =>
                       const Icon(Icons.person, color: primaryMaroon, size: 28),
                 )
               : const Icon(Icons.person, color: primaryMaroon, size: 28),

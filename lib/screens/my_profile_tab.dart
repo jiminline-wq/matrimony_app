@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -594,7 +595,7 @@ class _MyProfileTabState extends State<MyProfileTab> {
                 onPageChanged: (index) =>
                     setState(() => _currentPhotoIndex = index),
                 itemBuilder: (context, index) {
-                  return Image.network(
+                  return AppNetworkImage(
                     profile!.photoUrls[index],
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(

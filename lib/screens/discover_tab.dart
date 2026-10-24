@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -567,7 +568,7 @@ class _DiscoverTabState extends State<DiscoverTab> {
       ),
       child: ClipOval(
         child: (url != null && url.isNotEmpty)
-            ? Image.network(url,
+            ? AppNetworkImage(url,
                 width: 80,
                 height: 80,
                 fit: BoxFit.cover,
@@ -1177,8 +1178,8 @@ class _SwipeCardPhotoGalleryState extends State<_SwipeCardPhotoGallery> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        CachedNetworkImage(
-          imageUrl: widget.photoUrls[_currentIndex],
+        AppNetworkImage(
+          widget.photoUrls[_currentIndex],
           fit: BoxFit.cover,
           placeholder: (_, __) => Container(color: lightMaroon),
           errorWidget: (_, __, ___) => Container(

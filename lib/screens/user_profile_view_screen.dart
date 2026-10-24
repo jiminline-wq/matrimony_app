@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -684,7 +685,7 @@ class _UserProfileViewScreenState extends State<UserProfileViewScreen> {
                   onPageChanged: (index) =>
                       setState(() => _currentPhotoIndex = index),
                   itemBuilder: (context, index) {
-                    return Image.network(
+                    return AppNetworkImage(
                       user.photoUrls[index],
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
@@ -1044,7 +1045,7 @@ class _FullscreenPhotoViewerState extends State<_FullscreenPhotoViewer> {
             minScale: 0.5,
             maxScale: 4.0,
             child: Center(
-              child: Image.network(
+              child: AppNetworkImage(
                 widget.photoUrls[index],
                 fit: BoxFit.contain,
                 loadingBuilder: (context, child, progress) {

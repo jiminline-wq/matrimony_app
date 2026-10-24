@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
@@ -502,7 +503,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                 child: ClipOval(
                   child: profileImage != null
                       ? (kIsWeb
-                          ? Image.network(profileImage!.path,
+                          ? AppNetworkImage(profileImage!.path,
                               fit: BoxFit.cover,
                               width: 150,
                               height: 150,
@@ -706,7 +707,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                             child: ClipOval(
                               child: profileImage != null
                                   ? (kIsWeb
-                                      ? Image.network(profileImage!.path,
+                                      ? AppNetworkImage(profileImage!.path,
                                           fit: BoxFit.cover,
                                           width: 180,
                                           height: 180,
@@ -963,7 +964,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(14),
                     child: kIsWeb
-                        ? Image.network(image.path,
+                        ? AppNetworkImage(image.path,
                             width: 100,
                             height: 110,
                             fit: BoxFit.cover,

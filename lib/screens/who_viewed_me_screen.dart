@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -370,7 +371,7 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
                         shape: BoxShape.circle, color: lightMaroon),
                     child: ClipOval(
                       child: profile.photoUrl.isNotEmpty
-                          ? Image.network(profile.photoUrl,
+                          ? AppNetworkImage(profile.photoUrl,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => const Icon(
                                   Icons.person,
@@ -487,7 +488,7 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
                             borderRadius: const BorderRadius.vertical(
                                 top: Radius.circular(20)),
                             child: profile.photoUrl.isNotEmpty
-                                ? Image.network(profile.photoUrl,
+                                ? AppNetworkImage(profile.photoUrl,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) =>
                                         _imgPlaceholder())

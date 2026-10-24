@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-
+import 'package:matrimony_app/widgets/app_network_image.dart';
 import '../theme/colors.dart';
 import '../models/success_story.dart';
 
@@ -184,8 +184,8 @@ class _StoryDetailsScreenState extends State<StoryDetailsScreen> {
                     setState(() => _photoIndex = i);
                   },
                   itemCount: photos.length,
-                  itemBuilder: (_, i) => CachedNetworkImage(
-                    imageUrl: photos[i],
+                  itemBuilder: (_, i) => AppNetworkImage(
+                    photos[i],
                     fit: BoxFit.cover, // ওয়েবে কভার করা ভালো দেখায়
                     placeholder: (_, __) => const Center(
                       child: CircularProgressIndicator(color: primaryMaroon),
@@ -258,8 +258,8 @@ class _StoryDetailsScreenState extends State<StoryDetailsScreen> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: CachedNetworkImage(
-                        imageUrl: photos[i],
+                      child: AppNetworkImage(
+                        photos[i],
                         fit: BoxFit.cover,
                         placeholder: (_, __) => Container(color: lightMaroon),
                         errorWidget: (_, __, ___) => Container(
