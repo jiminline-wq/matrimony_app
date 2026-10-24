@@ -4,11 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
-import 'user_profile_view_screen.dart';
 import '../models/user_profile.dart';
 import '../ads/banner_ad_widget.dart';
 import '../ads/ad_config.dart';
 import '../ads/rewarded_ad_manager.dart';
+
+// ✅ Deferred Loading Import for UserProfileViewScreen
+import 'user_profile_view_screen.dart' deferred as user_profile_view_lib;
 
 class WhoViewedMeScreen extends StatefulWidget {
   final bool isBangla;
@@ -33,6 +35,32 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
       RewardedAdManager.loadAd();
     }
     _checkUnlockStatusAndLoad();
+  }
+
+  // ✅ DEFERRED NAVIGATION HELPER FOR PROFILE VIEW
+  Future<void> _openProfile(UserProfile profile, bool bn) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: primaryMaroon),
+      ),
+    );
+
+    await user_profile_view_lib.loadLibrary();
+
+    if (mounted) {
+      Navigator.pop(context); // Close loading dialog
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => user_profile_view_lib.UserProfileViewScreen(
+            isBangla: bn,
+            user: profile,
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _checkUnlockStatusAndLoad() async {
@@ -325,11 +353,7 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
           final profile = item['profile'] as UserProfile;
 
           return GestureDetector(
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) =>
-                        UserProfileViewScreen(isBangla: bn, user: profile))),
+            onTap: () => _openProfile(profile, bn),
             child: Container(
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(12),
@@ -504,13 +528,7 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
                                 SizedBox(
                                   width: double.infinity,
                                   child: OutlinedButton(
-                                    onPressed: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) =>
-                                                UserProfileViewScreen(
-                                                    isBangla: bn,
-                                                    user: profile))),
+                                    onPressed: () => _openProfile(profile, bn),
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: primaryMaroon,
                                       side: BorderSide(

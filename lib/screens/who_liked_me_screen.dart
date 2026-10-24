@@ -6,8 +6,10 @@ import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
 import '../utils/like_service.dart';
-import 'user_profile_view_screen.dart';
 import '../ads/rewarded_ad_manager.dart';
+
+// ✅ Deferred Loading Import for UserProfileViewScreen
+import 'user_profile_view_screen.dart' deferred as user_profile_view_lib;
 
 class WhoLikedMeScreen extends StatefulWidget {
   final bool isBangla;
@@ -35,6 +37,32 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
       RewardedAdManager.loadAd();
     }
     _checkUnlockStatusAndLoad();
+  }
+
+  // ✅ DEFERRED NAVIGATION HELPER FOR PROFILE VIEW
+  Future<void> _openProfile(UserProfile profile, bool bn) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: primaryMaroon),
+      ),
+    );
+
+    await user_profile_view_lib.loadLibrary();
+
+    if (mounted) {
+      Navigator.pop(context); // Close loading dialog
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => user_profile_view_lib.UserProfileViewScreen(
+            isBangla: bn,
+            user: profile,
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _checkUnlockStatusAndLoad() async {
@@ -338,11 +366,7 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
                 Row(
                   children: [
                     GestureDetector(
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => UserProfileViewScreen(
-                                  isBangla: bn, user: profile))),
+                      onTap: () => _openProfile(profile, bn),
                       child: Container(
                         width: 70,
                         height: 70,
@@ -409,11 +433,7 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => UserProfileViewScreen(
-                                    isBangla: bn, user: profile))),
+                        onPressed: () => _openProfile(profile, bn),
                         icon: const Icon(Icons.person_outline, size: 16),
                         label: Text(bn ? 'প্রোফাইল' : 'Profile'),
                       ),
@@ -591,13 +611,8 @@ class _WhoLikedMeScreenState extends State<WhoLikedMeScreen> {
                                   children: [
                                     Expanded(
                                       child: OutlinedButton(
-                                        onPressed: () => Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                                builder: (_) =>
-                                                    UserProfileViewScreen(
-                                                        isBangla: bn,
-                                                        user: profile))),
+                                        onPressed: () =>
+                                            _openProfile(profile, bn),
                                         style: OutlinedButton.styleFrom(
                                           foregroundColor: primaryMaroon,
                                           side: BorderSide(
