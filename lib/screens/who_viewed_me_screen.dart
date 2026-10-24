@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 import 'package:matrimony_app/widgets/app_network_image.dart';
 
@@ -9,6 +10,8 @@ import '../models/user_profile.dart';
 import '../ads/banner_ad_widget.dart';
 import '../ads/ad_config.dart';
 import '../ads/rewarded_ad_manager.dart';
+import '../widgets/verified_badge.dart';
+import '../utils/like_service.dart';
 
 // ✅ Deferred Loading Import for UserProfileViewScreen
 import 'user_profile_view_screen.dart' deferred as user_profile_view_lib;
@@ -23,23 +26,47 @@ class WhoViewedMeScreen extends StatefulWidget {
 }
 
 class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
-  List<Map<String, dynamic>> viewers = [];
+  List<UserProfile> viewers = [];
   bool isLoading = true;
   bool _isUnlocked = false;
   bool _isUnlocking = false;
 
+  // ✅ লক অবস্থায় সংখ্যা দেখানোর জন্য এই ভেরিয়েবলটি যোগ করা হলো
+  int _totalViewersCount = 0;
+
+  // ✅ রিওয়ার্ডেড অ্যাড লিমিট স্টেট
+  int _swipedCount = 0;
+  int _currentLimit = 10;
+  bool _isAdLoading = false;
+
+  final CardSwiperController _swiperController = CardSwiperController();
+
   @override
   void initState() {
     super.initState();
-    // ✅ ওয়েবে অ্যাড লোড করা যাবে না
     if (!kIsWeb) {
       RewardedAdManager.loadAd();
     }
     _checkUnlockStatusAndLoad();
   }
 
+  @override
+  void dispose() {
+    _swiperController.dispose();
+    super.dispose();
+  }
+
   // ✅ DEFERRED NAVIGATION HELPER FOR PROFILE VIEW
   Future<void> _openProfile(UserProfile profile, bool bn) async {
+    if (_isAdLoading) return;
+
+    // অ্যাড লিমিট চেক
+    if (_swipedCount >= _currentLimit) {
+      _showAdPrompt();
+      return;
+    }
+    setState(() => _swipedCount++);
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -68,7 +95,6 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
     final me = FirebaseAuth.instance.currentUser;
     if (me == null) return;
 
-    // ✅ ওয়েবের জন্য সরাসরি আনলক করে দেওয়া হলো (যেহেতু অ্যাড কাজ করবে না)
     if (kIsWeb) {
       setState(() {
         _isUnlocked = true;
@@ -102,11 +128,12 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
             .doc(me.uid)
             .collection('viewers')
             .get();
+
+        // ✅ ডামি প্রোফাইল না বানিয়ে শুধু সংখ্যাটা সেভ করা হচ্ছে
         setState(() {
-          viewers = List.generate(snap.docs.length, (i) => {'dummy': true});
+          _totalViewersCount = snap.docs.length;
         });
 
-        // ✅ মোবাইলে পেজে ঢোকার সাথে সাথেই অটোমেটিক অ্যাড শো করবে
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!_isUnlocked && !_isUnlocking) {
             _unlockWithAd();
@@ -130,7 +157,7 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
           .orderBy('viewedAt', descending: true)
           .limit(100)
           .get();
-      final List<Map<String, dynamic>> loaded = [];
+      final List<UserProfile> loaded = [];
 
       for (final doc in snapshot.docs) {
         final data = doc.data();
@@ -143,17 +170,14 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
               .doc(viewerUid)
               .get();
           if (profileDoc.exists) {
-            loaded.add({
-              'viewerUid': viewerUid,
-              'profile': UserProfile.fromMap(profileDoc.data()!, docId: doc.id),
-              'viewedAt': data['viewedAt'],
-            });
+            loaded.add(UserProfile.fromMap(profileDoc.data()!, docId: doc.id));
           }
         } catch (e) {}
       }
 
       setState(() {
         viewers = loaded;
+        _totalViewersCount = loaded.length; // ✅ সংখ্যাও আপডেট করা হলো
         isLoading = false;
       });
     } catch (e) {
@@ -213,6 +237,125 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
     }
   }
 
+  // ============================================================
+  // ✅ ১০ সোয়াইপ পর অ্যাড প্রম্পট ডায়ালগ
+  // ============================================================
+  Future<void> _showAdPrompt() async {
+    if (_isAdLoading) return;
+    _isAdLoading = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.lock, color: primaryGold, size: 28),
+            const SizedBox(width: 8),
+            Text(widget.isBangla ? 'লিমিট শেষ!' : 'Limit Reached!',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          widget.isBangla
+              ? 'আপনি $_currentLimit টি প্রোফাইল দেখেছেন। আরও ১০টি প্রোফাইল দেখতে একটি ছোট বিজ্ঞাপন দেখুন।'
+              : 'You have viewed $_currentLimit profiles. Watch a short ad to see 10 more profiles.',
+          style: const TextStyle(fontSize: 15, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _isAdLoading = false;
+            },
+            child: Text(widget.isBangla ? 'বাতিল' : 'Cancel',
+                style: const TextStyle(color: secondaryText)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              if (kIsWeb) {
+                setState(() => _currentLimit += 10);
+                _isAdLoading = false;
+                return;
+              }
+
+              final success =
+                  await RewardedAdManager.showAd(onUserEarnedReward: () {});
+
+              if (success) {
+                setState(() => _currentLimit += 10);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(widget.isBangla
+                          ? '✅ আরও ১০টি প্রোফাইল আনলক হয়েছে!'
+                          : '✅ 10 more profiles unlocked!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } else {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(widget.isBangla
+                          ? 'বিজ্ঞাপনটি শেষ পর্যন্ত দেখতে হবে!'
+                          : 'You must watch the full ad!'),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
+              }
+              _isAdLoading = false;
+            },
+            icon: const Icon(Icons.play_circle_fill),
+            label: Text(widget.isBangla ? 'অ্যাড দেখুন' : 'Watch Ad'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: primaryMaroon, foregroundColor: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // LIKE USER
+  // ============================================================
+  Future<void> _likeUser(UserProfile targetUser) async {
+    final myUser = FirebaseAuth.instance.currentUser;
+    if (myUser == null) return;
+    if (myUser.uid.trim().isEmpty || targetUser.uid.trim().isEmpty) return;
+
+    try {
+      await LikeService.likeUser(myUid: myUser.uid, theirUid: targetUser.uid);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.favorite, color: Colors.white),
+              const SizedBox(width: 10),
+              Text(widget.isBangla
+                  ? '${targetUser.name}-কে like করা হয়েছে'
+                  : 'Liked ${targetUser.name}'),
+            ],
+          ),
+          backgroundColor: primaryMaroon,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    } catch (e) {
+      debugPrint('❌ likeUser error: $e');
+    }
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     final bn = widget.isBangla;
@@ -233,12 +376,10 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final isDesktop = constraints.maxWidth > 800;
-                return _buildBody(bn, isDesktop);
+                return _buildBody(bn, constraints.maxWidth > 800);
               },
             ),
           ),
-          // ✅ AdMob শুধু মোবাইলে
           if (_isUnlocked && !kIsWeb)
             const SafeArea(
               top: false,
@@ -266,26 +407,7 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
       );
     }
 
-    if (viewers.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(30),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.visibility_outlined,
-                  size: 60, color: primaryMaroon),
-              const SizedBox(height: 24),
-              Text(
-                  bn ? 'এখনো কেউ আপনার profile দেখেনি' : 'No profile views yet',
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-      );
-    }
-
+    // ✅ আনলক না হলে লক স্ক্রিন
     if (!_isUnlocked) {
       return Center(
         child: Padding(
@@ -304,8 +426,8 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
               const SizedBox(height: 24),
               Text(
                 bn
-                    ? '${viewers.length} জন আপনার প্রোফাইল দেখেছেন!'
-                    : '${viewers.length} people viewed your profile!',
+                    ? '$_totalViewersCount জন আপনার প্রোফাইল দেখেছেন!'
+                    : '$_totalViewersCount people viewed your profile!',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                     fontSize: 22,
@@ -335,227 +457,252 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
       );
     }
 
-    // ✅ আনলকড হলে মোবাইল বা ওয়েব লেআউট দেখাবে
-    return isDesktop ? _buildWebLayout(bn) : _buildMobileLayout(bn);
-  }
+    // ✅ কেউ না থাকলে
+    if (viewers.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(30),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.visibility_outlined,
+                  size: 60, color: primaryMaroon),
+              const SizedBox(height: 24),
+              Text(
+                  bn ? 'এখনো কেউ আপনার profile দেখেনি' : 'No profile views yet',
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      );
+    }
 
-  // ============================================================
-  // 📱 ১. মোবাইল লেআউট (হুবহু অক্ষত)
-  // ============================================================
-  Widget _buildMobileLayout(bool bn) {
-    return RefreshIndicator(
-      onRefresh: loadViewers,
-      color: primaryMaroon,
-      child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-        itemCount: viewers.length,
-        itemBuilder: (context, index) {
-          final item = viewers[index];
-          final profile = item['profile'] as UserProfile;
+    // ✅ কার্ড সোয়াইপ লেআউট
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: kIsWeb ? 450 : double.infinity,
+          maxHeight: kIsWeb ? 600 : double.infinity,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Column(
+            children: [
+              Expanded(
+                child: CardSwiper(
+                  controller: _swiperController,
+                  cardsCount: viewers.length,
+                  numberOfCardsDisplayed:
+                      viewers.length < 2 ? viewers.length : 2,
+                  backCardOffset: const Offset(0, 30),
+                  padding: const EdgeInsets.all(8),
+                  onSwipe: (previousIndex, currentIndex, direction) {
+                    if (_isAdLoading) return false;
+                    if (_swipedCount >= _currentLimit) {
+                      _showAdPrompt();
+                      return false;
+                    }
 
-          return GestureDetector(
-            onTap: () => _openProfile(profile, bn),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.grey.shade200)),
-              child: Row(
+                    final swipedUser = viewers[previousIndex];
+
+                    if (direction == CardSwiperDirection.right) {
+                      _likeUser(swipedUser);
+                    }
+
+                    setState(() {
+                      _swipedCount++;
+                    });
+
+                    return true;
+                  },
+                  cardBuilder: (context, index, horizontalOffsetPercentage,
+                      verticalOffsetPercentage) {
+                    return _buildSwipeCard(viewers[index], bn);
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                        shape: BoxShape.circle, color: lightMaroon),
-                    child: ClipOval(
-                      child: profile.photoUrl.isNotEmpty
-                          ? AppNetworkImage(profile.photoUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.person,
-                                  color: primaryMaroon))
-                          : const Icon(Icons.person, color: primaryMaroon),
-                    ),
+                  _buildActionButton(
+                    icon: Icons.close,
+                    color: Colors.grey.shade400,
+                    onTap: () {
+                      if (_isAdLoading) return;
+                      if (_swipedCount >= _currentLimit) {
+                        _showAdPrompt();
+                        return;
+                      }
+                      _swiperController.swipe(CardSwiperDirection.left);
+                    },
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(profile.name,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16)),
-                        Text('${profile.age} • ${profile.district}',
-                            style: const TextStyle(
-                                fontSize: 12, color: secondaryText)),
-                      ],
-                    ),
+                  const SizedBox(width: 24),
+                  _buildActionButton(
+                    icon: Icons.favorite,
+                    color: primaryMaroon,
+                    onTap: () {
+                      if (_isAdLoading) return;
+                      if (_swipedCount >= _currentLimit) {
+                        _showAdPrompt();
+                        return;
+                      }
+                      _swiperController.swipe(CardSwiperDirection.right);
+                    },
                   ),
-                  const Icon(Icons.arrow_forward_ios,
-                      size: 14, color: secondaryText),
                 ],
               ),
-            ),
-          );
-        },
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   // ============================================================
-  // 💻 ২. ওয়েব লেআউট (নতুন প্রিমিয়াম গ্রিড ভিউ)
+  // SWIPE CARD
   // ============================================================
-  Widget _buildWebLayout(bool bn) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(30),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSwipeCard(UserProfile user, bool bn) {
+    return GestureDetector(
+      onTap: () => _openProfile(user, bn),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 8)),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
             children: [
-              // হেডার
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                        color: Colors.blue.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(16)),
-                    child: const Icon(Icons.visibility,
-                        color: Colors.blue, size: 30),
-                  ),
-                  const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        bn ? 'প্রোফাইল ভিউয়ার্স' : 'Profile Viewers',
-                        style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: deepMaroon),
+              Positioned.fill(
+                child: user.photoUrls.isNotEmpty
+                    ? _SwipeCardPhotoGallery(photoUrls: user.photoUrls)
+                    : Container(
+                        color: lightMaroon,
+                        child: const Center(
+                            child: Icon(Icons.person,
+                                size: 100, color: primaryMaroon)),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        bn
-                            ? 'মোট ${viewers.length} জন আপনার প্রোফাইল দেখেছেন'
-                            : '${viewers.length} people viewed your profile',
-                        style:
-                            const TextStyle(fontSize: 14, color: secondaryText),
-                      ),
-                    ],
-                  ),
-                ],
               ),
-              const SizedBox(height: 24),
-
-              // গ্রিড ভিউ
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 20,
-                  mainAxisSpacing: 20,
-                  mainAxisExtent: 320, // কার্ডের নির্দিষ্ট উচ্চতা
-                ),
-                itemCount: viewers.length,
-                itemBuilder: (context, index) {
-                  final item = viewers[index];
-                  final profile = item['profile'] as UserProfile;
-
-                  return Container(
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 15,
-                            offset: const Offset(0, 8))
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.85)
+                        ],
+                        stops: const [0, 0.55, 1],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 12,
+                right: 12,
+                child: IgnorePointer(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(20)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.touch_app,
+                            color: Colors.white, size: 13),
+                        const SizedBox(width: 4),
+                        Text(bn ? 'দেখতে ট্যাপ' : 'Tap to view',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600)),
                       ],
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // ইমেজ
-                        Expanded(
-                          flex: 5,
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(20)),
-                            child: profile.photoUrl.isNotEmpty
-                                ? AppNetworkImage(profile.photoUrl,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        _imgPlaceholder())
-                                : _imgPlaceholder(),
-                          ),
-                        ),
-
-                        // ইনফো
-                        Expanded(
-                          flex: 4,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 22,
+                child: IgnorePointer(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      profile.name.isEmpty
-                                          ? 'নাম নেই'
-                                          : profile.name,
-                                      style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: mainText),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text('${profile.age} • ${profile.district}',
-                                        style: const TextStyle(
-                                            fontSize: 13,
-                                            color: secondaryText)),
-                                  ],
-                                ),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton(
-                                    onPressed: () => _openProfile(profile, bn),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: primaryMaroon,
-                                      side: BorderSide(
-                                          color: primaryMaroon.withValues(
-                                              alpha: 0.3)),
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(10)),
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 8),
-                                    ),
-                                    child: Text(
-                                        bn ? 'প্রোফাইল দেখুন' : 'View Profile',
-                                        style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold)),
+                                Flexible(
+                                  child: Text(
+                                    user.name.isEmpty
+                                        ? (bn ? 'নাম নেই' : 'No name')
+                                        : user.name,
+                                    style: const TextStyle(
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
+                                if (user.isVerified) ...[
+                                  const SizedBox(width: 8),
+                                  const VerifiedBadge(size: 22),
+                                ],
                               ],
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                          if (user.age.isNotEmpty) ...[
+                            const SizedBox(width: 10),
+                            Text(user.age,
+                                style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white)),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on,
+                              color: Colors.white, size: 16),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              user.district.isEmpty ? '—' : user.district,
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 14),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -564,11 +711,90 @@ class _WhoViewedMeScreenState extends State<WhoViewedMeScreen> {
     );
   }
 
-  Widget _imgPlaceholder() {
-    return Container(
-      color: lightMaroon,
-      child: const Center(
-          child: Icon(Icons.person, size: 80, color: primaryMaroon)),
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 62,
+        height: 62,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+                color: color.withValues(alpha: 0.3),
+                blurRadius: 15,
+                offset: const Offset(0, 5)),
+          ],
+        ),
+        child: Icon(icon, color: color, size: 30),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// SWIPE CARD PHOTO GALLERY
+// ============================================================
+class _SwipeCardPhotoGallery extends StatefulWidget {
+  final List<String> photoUrls;
+  const _SwipeCardPhotoGallery({required this.photoUrls});
+
+  @override
+  State<_SwipeCardPhotoGallery> createState() => _SwipeCardPhotoGalleryState();
+}
+
+class _SwipeCardPhotoGalleryState extends State<_SwipeCardPhotoGallery> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        AppNetworkImage(
+          widget.photoUrls[_currentIndex],
+          fit: BoxFit.cover,
+          placeholder: (_, __) => Container(color: lightMaroon),
+          errorWidget: (_, __, ___) => Container(
+            color: lightMaroon,
+            child: const Center(
+                child: Icon(Icons.person, size: 100, color: primaryMaroon)),
+          ),
+        ),
+        if (widget.photoUrls.length > 1)
+          Positioned(
+            top: 10,
+            left: 10,
+            right: 10,
+            child: IgnorePointer(
+              child: Row(
+                children: List.generate(
+                  widget.photoUrls.length,
+                  (index) => Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _currentIndex = index),
+                      child: Container(
+                        height: 3,
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        decoration: BoxDecoration(
+                          color: index == _currentIndex
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
