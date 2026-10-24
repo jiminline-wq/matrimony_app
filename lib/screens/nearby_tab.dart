@@ -11,9 +11,11 @@ import '../utils/bd_districts.dart';
 import '../services/location_service.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/chat_icon_button.dart';
-import 'user_profile_view_screen.dart';
 import '../ads/banner_ad_widget.dart';
 import '../ads/ad_config.dart';
+
+// ✅ Deferred Loading Import for UserProfileViewScreen
+import 'user_profile_view_screen.dart' deferred as user_profile_view_lib;
 
 // ============================================================
 // NEARBY TAB
@@ -319,15 +321,31 @@ class _NearbyTabState extends State<NearbyTab> {
     }
   }
 
+  // ✅ DEFERRED NAVIGATION HELPER FOR PROFILE VIEW
   Future<void> _openProfile(UserProfile user) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            UserProfileViewScreen(isBangla: widget.isBangla, user: user),
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: primaryMaroon),
       ),
     );
-    if (mounted) _loadUsers(reset: true);
+
+    await user_profile_view_lib.loadLibrary();
+
+    if (mounted) {
+      Navigator.pop(context); // Close loading dialog
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => user_profile_view_lib.UserProfileViewScreen(
+            isBangla: widget.isBangla,
+            user: user,
+          ),
+        ),
+      );
+      if (mounted) _loadUsers(reset: true);
+    }
   }
 
   // ============================================================

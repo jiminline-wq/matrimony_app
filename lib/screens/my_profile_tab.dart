@@ -10,20 +10,21 @@ import '../utils/boost_service.dart';
 import '../utils/shortlist_service.dart';
 import '../widgets/deactivate_dialog.dart';
 import '../services/fcm_service.dart';
-import 'edit_profile_screen.dart';
-import 'welcome_screen.dart';
-import 'who_viewed_me_screen.dart';
-import 'who_liked_me_screen.dart';
-import 'shortlist_screen.dart';
 import '../utils/test_data_loader.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/chat_icon_button.dart';
-import 'referral_screen.dart';
-import 'boost_screen.dart';
 import '../ads/banner_ad_widget.dart';
 import '../ads/ad_config.dart';
 import '../widgets/profile_completeness_card.dart';
-import '../utils/ai_match_service.dart';
+
+// ✅ Deferred Loading Imports
+import 'edit_profile_screen.dart' deferred as edit_profile_lib;
+import 'welcome_screen.dart' deferred as welcome_lib;
+import 'who_viewed_me_screen.dart' deferred as who_viewed_me_lib;
+import 'who_liked_me_screen.dart' deferred as who_liked_me_lib;
+import 'shortlist_screen.dart' deferred as shortlist_lib;
+import 'referral_screen.dart' deferred as referral_lib;
+import 'boost_screen.dart' deferred as boost_lib;
 
 // ============================================================
 // MY PROFILE TAB
@@ -57,6 +58,30 @@ class _MyProfileTabState extends State<MyProfileTab> {
     loadViewerCount();
     loadLikeCount();
     loadShortlistCount();
+  }
+
+  // ✅ DEFERRED NAVIGATION HELPER
+  Future<void> _navigateDeferred(
+    Future<void> libraryLoader,
+    Widget Function() screenBuilder,
+  ) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: primaryMaroon),
+      ),
+    );
+
+    await libraryLoader;
+
+    if (mounted) {
+      Navigator.pop(context); // Close loading dialog
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => screenBuilder()),
+      );
+    }
   }
 
   Future<void> loadProfile() async {
@@ -128,102 +153,27 @@ class _MyProfileTabState extends State<MyProfileTab> {
     if (mounted) setState(() => shortlistCount = count);
   }
 
-  Future<void> _activateBoost() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    final bn = widget.isBangla;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  gradient:
-                      LinearGradient(colors: [primaryGold, primaryMaroon]),
-                  borderRadius: BorderRadius.all(Radius.circular(10)),
-                ),
-                child: const Icon(Icons.bolt, color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 10),
-              Text(bn ? 'Boost করুন' : 'Boost Profile',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 18)),
-            ],
-          ),
-          content: Text(
-            bn
-                ? 'আপনার profile পরবর্তী ২৪ ঘন্টার জন্য Discover-এ সবার উপরে দেখানো হবে।'
-                : 'Your profile will be shown at the top of Discover for the next 24 hours.',
-            style: const TextStyle(fontSize: 14, height: 1.5),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(bn ? 'বাতিল' : 'Cancel',
-                    style: const TextStyle(color: secondaryText))),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryMaroon,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12))),
-              child: Text(bn ? 'Boost চালু করুন' : 'Activate Boost',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true) return;
-    setState(() => _isBoosting = true);
-    final success = await BoostService.activateBoost(user.uid);
-    if (!mounted) return;
-    setState(() => _isBoosting = false);
-
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(children: [
-            const Icon(Icons.bolt, color: Colors.white),
-            const SizedBox(width: 10),
-            Expanded(
-                child: Text(bn
-                    ? 'আপনার profile ২৪ ঘন্টার জন্য Boost হয়েছে ⚡'
-                    : 'Your profile is boosted for 24 hours ⚡'))
-          ]),
-          backgroundColor: Colors.green.shade700,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      loadProfile();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(bn
-                ? 'Boost চালু করা যায়নি। আবার চেষ্টা করুন।'
-                : 'Could not activate boost. Please try again.'),
-            backgroundColor: primaryMaroon,
-            behavior: SnackBarBehavior.floating),
-      );
-    }
-  }
-
   Future<void> _logout() async {
     await FcmService.removeToken();
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: primaryMaroon),
+      ),
+    );
+
+    await welcome_lib.loadLibrary();
+
+    if (!mounted) return;
+    Navigator.pop(context);
+
     Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+        MaterialPageRoute(builder: (_) => welcome_lib.WelcomeScreen()),
         (route) => false);
   }
 
@@ -234,42 +184,76 @@ class _MyProfileTabState extends State<MyProfileTab> {
     await FcmService.removeToken();
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: primaryMaroon),
+      ),
+    );
+
+    await welcome_lib.loadLibrary();
+
+    if (!mounted) return;
+    Navigator.pop(context);
+
     Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+        MaterialPageRoute(builder: (_) => welcome_lib.WelcomeScreen()),
         (route) => false);
   }
 
   Future<void> _openWhoViewedMe() async {
-    await Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (_) => WhoViewedMeScreen(isBangla: widget.isBangla)));
+    await _navigateDeferred(
+      who_viewed_me_lib.loadLibrary(),
+      () => who_viewed_me_lib.WhoViewedMeScreen(isBangla: widget.isBangla),
+    );
     loadViewerCount();
   }
 
   Future<void> _openWhoLikedMe() async {
-    await Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (_) => WhoLikedMeScreen(isBangla: widget.isBangla)));
+    await _navigateDeferred(
+      who_liked_me_lib.loadLibrary(),
+      () => who_liked_me_lib.WhoLikedMeScreen(isBangla: widget.isBangla),
+    );
     loadLikeCount();
   }
 
   Future<void> _openShortlist() async {
-    await Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (_) => ShortlistScreen(isBangla: widget.isBangla)));
+    await _navigateDeferred(
+      shortlist_lib.loadLibrary(),
+      () => shortlist_lib.ShortlistScreen(isBangla: widget.isBangla),
+    );
     loadShortlistCount();
   }
 
   Future<void> _openEditProfile() async {
+    if (profile == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: primaryMaroon),
+      ),
+    );
+
+    await edit_profile_lib.loadLibrary();
+
+    if (!mounted) return;
+    Navigator.pop(context);
+
     final result = await Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (_) => EditProfileScreen(
-                isBangla: widget.isBangla, profile: profile!)));
+      context,
+      MaterialPageRoute(
+        builder: (_) => edit_profile_lib.EditProfileScreen(
+          isBangla: widget.isBangla,
+          profile: profile!,
+        ),
+      ),
+    );
+
     if (result == true) loadProfile();
   }
 
@@ -382,15 +366,7 @@ class _MyProfileTabState extends State<MyProfileTab> {
           ProfileCompletenessCard(
             profile: _profileData,
             isBangla: bn,
-            onEditTap: () {
-              if (profile == null) return;
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => EditProfileScreen(
-                          isBangla: bn,
-                          profile: profile!))).then((_) => loadProfile());
-            },
+            onEditTap: _openEditProfile,
           ),
           _buildProfileHeader(bn, isBoostActive, 595),
           const SizedBox(height: 20),
@@ -491,15 +467,7 @@ class _MyProfileTabState extends State<MyProfileTab> {
                       ProfileCompletenessCard(
                         profile: _profileData,
                         isBangla: bn,
-                        onEditTap: () {
-                          if (profile == null) return;
-                          Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) => EditProfileScreen(
-                                          isBangla: bn, profile: profile!)))
-                              .then((_) => loadProfile());
-                        },
+                        onEditTap: _openEditProfile,
                       ),
                       const SizedBox(height: 20),
                       _buildProfileHeader(
@@ -814,11 +782,11 @@ class _MyProfileTabState extends State<MyProfileTab> {
                     onTap: isBoostActive
                         ? null
                         : () async {
-                            await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => BoostScreen(
-                                        isBangla: widget.isBangla)));
+                            await _navigateDeferred(
+                              boost_lib.loadLibrary(),
+                              () => boost_lib.BoostScreen(
+                                  isBangla: widget.isBangla),
+                            );
                             loadProfile();
                           },
                     child: Container(
@@ -970,10 +938,10 @@ class _MyProfileTabState extends State<MyProfileTab> {
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => ReferralScreen(isBangla: widget.isBangla))),
+            onPressed: () => _navigateDeferred(
+              referral_lib.loadLibrary(),
+              () => referral_lib.ReferralScreen(isBangla: widget.isBangla),
+            ),
             child: Text(bn ? 'দেখুন' : 'View',
                 style: const TextStyle(
                     color: primaryMaroon, fontWeight: FontWeight.bold)),
