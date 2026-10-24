@@ -8,9 +8,11 @@ import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
-import 'home_screen.dart';
 import '../ads/banner_ad_widget.dart';
 import '../ads/ad_config.dart';
+
+// ✅ Deferred Loading Import for HomeScreen
+import 'home_screen.dart' deferred as home_screen_lib;
 
 class ProfilePreviewScreen extends StatefulWidget {
   final bool isBangla;
@@ -181,13 +183,29 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
         ),
       );
 
+      // ✅ Show Loading Dialog while loading deferred home library
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(
+          child: CircularProgressIndicator(color: primaryMaroon),
+        ),
+      );
+
+      await home_screen_lib.loadLibrary();
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => HomeScreen(isBangla: bn)),
+        MaterialPageRoute(
+            builder: (_) => home_screen_lib.HomeScreen(isBangla: bn)),
         (route) => false,
       );
     } catch (e) {
       if (!mounted) return;
+      setState(() => isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -199,8 +217,6 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-    } finally {
-      if (mounted) setState(() => isSaving = false);
     }
   }
 
@@ -531,7 +547,7 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
   }
 
   // ============================================================
-  // 🌐 ২. ওয়েব লেআউট (আপনার দেওয়া স্ক্রিনশটের মতো)
+  // 🌐 ২. ওয়েব লেআউট
   // ============================================================
   Widget _buildWebLayout(bool bn) {
     final List<File> allPhotos = [
@@ -540,7 +556,7 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6), // হালকা গ্রে ব্যাকগ্রাউন্ড
+      backgroundColor: const Color(0xFFF3F4F6),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -569,15 +585,13 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
             child: SingleChildScrollView(
               child: Center(
                 child: ConstrainedBox(
-                  constraints:
-                      const BoxConstraints(maxWidth: 900), // ম্যাক্স উইডথ
+                  constraints: const BoxConstraints(maxWidth: 900),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // কভার ফটো ও টেক্সট
                         Container(
                           height: 450,
                           decoration: BoxDecoration(
@@ -701,7 +715,6 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
                           ),
                         ),
                         const SizedBox(height: 25),
-                        // মৌলিক তথ্য কার্ড
                         _buildWebSectionCard(
                           title: bn ? "মৌলিক তথ্য" : "Basic Information",
                           icon: Icons.person_outline,
@@ -744,7 +757,6 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
                                 Colors.brown.withValues(alpha: 0.1)),
                           ],
                         ),
-                        // শিক্ষা ও পেশা
                         _buildWebSectionCard(
                           title: bn ? "শিক্ষা ও পেশা" : "Education & Career",
                           icon: Icons.school_outlined,
@@ -763,7 +775,6 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
                                 Colors.teal.withValues(alpha: 0.1)),
                           ],
                         ),
-                        // নিজের সম্পর্কে
                         _buildWebSectionCard(
                           title: bn ? "নিজের সম্পর্কে" : "About Me",
                           icon: Icons.favorite_outline,
@@ -775,7 +786,6 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
                                     color: mainText)),
                           ],
                         ),
-                        // জীবনসঙ্গীর পছন্দ
                         _buildWebSectionCard(
                           title: bn ? "জীবনসঙ্গীর পছন্দ" : "Partner Preference",
                           icon: Icons.favorite,
@@ -807,7 +817,6 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
                           ],
                         ),
                         const SizedBox(height: 10),
-                        // সেভ বাটন
                         Container(
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
