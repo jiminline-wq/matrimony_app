@@ -7,9 +7,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 
 import '../theme/colors.dart';
-import 'profile_preview_screen.dart';
 import '../ads/banner_ad_widget.dart'; // ✅ ব্যানার অ্যাড ইমপোর্ট
 import '../ads/ad_config.dart'; // ✅ অ্যাড কনফিগ ইমপোর্ট
+
+// ✅ Deferred Loading Import for ProfilePreviewScreen
+import 'profile_preview_screen.dart' deferred as profile_preview_lib;
 
 // ============================================================
 // PROFILE DETAILS SCREEN
@@ -323,7 +325,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   }
 
   // ============================================================
-  // CONTINUE
+  // CONTINUE (With Deferred Loading for Preview Screen)
   // ============================================================
   Future<void> continueProfile() async {
     if (!formKey.currentState!.validate()) return;
@@ -367,10 +369,24 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
 
     if (!mounted) return;
 
+    // ✅ Show Loading Dialog while loading deferred library
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: primaryMaroon),
+      ),
+    );
+
+    await profile_preview_lib.loadLibrary();
+
+    if (!mounted) return;
+    Navigator.pop(context); // Close loading dialog
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ProfilePreviewScreen(
+        builder: (_) => profile_preview_lib.ProfilePreviewScreen(
           isBangla: widget.isBangla,
           name: widget.name,
           gender: widget.gender,
