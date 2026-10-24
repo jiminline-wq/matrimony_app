@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:flutter_card_swiper/flutter_card_swiper.dart';
+import 'package:flutter/foundation.dart'; // ✅ kIsWeb
 import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
 import '../utils/boost_service.dart';
+import '../utils/like_service.dart';
+import '../utils/block_report_service.dart';
 import 'user_profile_view_screen.dart';
+import '../widgets/verified_badge.dart';
 import '../ads/rewarded_ad_manager.dart';
 
 class DistrictUsersScreen extends StatefulWidget {
@@ -32,41 +35,27 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   List<UserProfile> _users = [];
+  Set<String> _likedUids = {};
+  Set<String> _blockedUids = {};
 
-  // ✅ অ্যাড আনলক স্টেট
-  bool _isUnlocked = false;
-  bool _isUnlocking = false;
+  // ✅ রিওয়ার্ডেড অ্যাড লিমিট স্টেট
+  int _swipedCount = 0;
+  int _currentLimit = 10; // প্রতি ১০টি সোয়াইপে অ্যাড
+  bool _isAdLoading = false;
+
+  final CardSwiperController _swiperController = CardSwiperController();
 
   @override
   void initState() {
     super.initState();
     _load();
-
-    // ✅ ওয়েবের জন্য সরাসরি আনলক, মোবাইলে অ্যাড দেখাবে
-    if (kIsWeb) {
-      _isUnlocked = true;
-    } else {
-      _showAdOnEnter();
-    }
+    RewardedAdManager.loadAd();
   }
 
-  // ✅ মোবাইলে পেজে ঢোকার সাথে সাথে অ্যাড দেখানোর লজিক
-  Future<void> _showAdOnEnter() async {
-    if (_isUnlocking || kIsWeb) return;
-    setState(() => _isUnlocking = true);
-
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    try {
-      final success = await RewardedAdManager.showAd(onUserEarnedReward: () {});
-      if (success) {
-        setState(() => _isUnlocked = true);
-      }
-    } catch (e) {
-      debugPrint('❌ Ad show error: $e');
-    } finally {
-      if (mounted) setState(() => _isUnlocking = false);
-    }
+  @override
+  void dispose() {
+    _swiperController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -85,6 +74,17 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
         _oppositeGender = 'Male';
       }
 
+      // ✅ লাইক এবং ব্লক করা ইউজার লোড করা
+      try {
+        final likedSnap = await FirebaseFirestore.instance
+            .collection('likes')
+            .doc(uid)
+            .collection('liked')
+            .get();
+        _likedUids = likedSnap.docs.map((d) => d.id).toSet();
+        _blockedUids = await BlockReportService.getBlockedUids(uid);
+      } catch (_) {}
+
       Query q = FirebaseFirestore.instance
           .collection('users')
           .where('district', isEqualTo: widget.district)
@@ -99,6 +99,9 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
 
       for (final doc in snap.docs) {
         if (doc.id == uid) continue;
+        if (_likedUids.contains(doc.id)) continue; // ✅ লাইক করা বাদ যাবে
+        if (_blockedUids.contains(doc.id)) continue; // ✅ ব্লক করা বাদ যাবে
+
         final data = doc.data() as Map<String, dynamic>;
         if (data['isDeactivated'] == true) continue;
         users.add(UserProfile.fromMap(data, docId: doc.id));
@@ -125,6 +128,273 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
     }
   }
 
+  // ============================================================
+  // LIKE USER & MATCH DIALOG
+  // ============================================================
+  Future<void> _likeUser(UserProfile targetUser) async {
+    final myUser = FirebaseAuth.instance.currentUser;
+    if (myUser == null) return;
+    if (myUser.uid.trim().isEmpty || targetUser.uid.trim().isEmpty) return;
+
+    try {
+      await LikeService.likeUser(myUid: myUser.uid, theirUid: targetUser.uid);
+
+      final theirLikeDoc = await FirebaseFirestore.instance
+          .collection('likes')
+          .doc(targetUser.uid)
+          .collection('liked')
+          .doc(myUser.uid)
+          .get();
+
+      if (theirLikeDoc.exists) {
+        final myProfileDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(myUser.uid)
+            .get();
+        final myData = myProfileDoc.data() ?? {};
+
+        final matchId = _generateMatchId(myUser.uid, targetUser.uid);
+        if (matchId.isEmpty) return;
+
+        await FirebaseFirestore.instance
+            .collection('matches')
+            .doc(matchId)
+            .set({
+          'users': [myUser.uid, targetUser.uid],
+          'user1': {
+            'uid': myUser.uid,
+            'name': myData['name'] ?? '',
+            'photoUrl': myData['photoUrl'] ?? '',
+            'age': myData['age'] ?? '',
+            'district': myData['district'] ?? '',
+          },
+          'user2': {
+            'uid': targetUser.uid,
+            'name': targetUser.name,
+            'photoUrl': targetUser.photoUrl,
+            'age': targetUser.age,
+            'district': targetUser.district,
+          },
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        if (!mounted) return;
+        _showMatchDialog(targetUser, myData['photoUrl'] as String? ?? '');
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.favorite, color: Colors.white),
+                const SizedBox(width: 10),
+                Text(widget.isBangla
+                    ? '${targetUser.name}-কে like করা হয়েছে'
+                    : 'Liked ${targetUser.name}'),
+              ],
+            ),
+            backgroundColor: primaryMaroon,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ likeUser error: $e');
+    }
+  }
+
+  String _generateMatchId(String uid1, String uid2) {
+    if (uid1.trim().isEmpty || uid2.trim().isEmpty) return '';
+    final sorted = [uid1, uid2]..sort();
+    return '${sorted[0]}_${sorted[1]}';
+  }
+
+  void _showMatchDialog(UserProfile targetUser, String myPhotoUrl) {
+    final bn = widget.isBangla;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [lightMaroon, lightGold],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.favorite, size: 70, color: primaryMaroon),
+                const SizedBox(height: 16),
+                Text(
+                  bn ? '🎉 এটা একটা Match!' : '🎉 It\'s a Match!',
+                  style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: mainText),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  bn
+                      ? 'আপনি এবং ${targetUser.name} পরস্পরকে like করেছেন।'
+                      : 'You and ${targetUser.name} liked each other.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 14, color: secondaryText, height: 1.5),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildDialogPhoto(myPhotoUrl, isMy: true),
+                    Transform.translate(
+                      offset: const Offset(-12, 0),
+                      child:
+                          _buildDialogPhoto(targetUser.photoUrl, isMy: false),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryMaroon,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: Text(bn ? 'দেখতে থাকুন' : 'Keep Swiping',
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDialogPhoto(String? url, {required bool isMy}) {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        border: Border.all(color: primaryGold, width: 3),
+      ),
+      child: ClipOval(
+        child: (url != null && url.isNotEmpty)
+            ? AppNetworkImage(url,
+                width: 80,
+                height: 80,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.person, size: 40, color: primaryMaroon))
+            : const Icon(Icons.person, size: 40, color: primaryMaroon),
+      ),
+    );
+  }
+
+  // ============================================================
+  // ✅ রিওয়ার্ডেড অ্যাড প্রম্পট ডায়ালগ
+  // ============================================================
+  Future<void> _showAdPrompt() async {
+    if (_isAdLoading) return;
+    _isAdLoading = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.lock, color: primaryGold, size: 28),
+            const SizedBox(width: 8),
+            Text(widget.isBangla ? 'লিমিট শেষ!' : 'Limit Reached!',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          widget.isBangla
+              ? 'আপনি $_currentLimit টি প্রোফাইল দেখেছেন। আরও ১০টি প্রোফাইল দেখতে একটি ছোট বিজ্ঞাপন দেখুন।'
+              : 'You have viewed $_currentLimit profiles. Watch a short ad to see 10 more profiles.',
+          style: const TextStyle(fontSize: 15, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _isAdLoading = false;
+            },
+            child: Text(widget.isBangla ? 'বাতিল' : 'Cancel',
+                style: const TextStyle(color: secondaryText)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              if (kIsWeb) {
+                setState(() => _currentLimit += 10);
+                _isAdLoading = false;
+                return;
+              }
+
+              final success =
+                  await RewardedAdManager.showAd(onUserEarnedReward: () {});
+
+              if (success) {
+                setState(() => _currentLimit += 10);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(widget.isBangla
+                          ? '✅ আরও ১০টি প্রোফাইল আনলক হয়েছে!'
+                          : '✅ 10 more profiles unlocked!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } else {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(widget.isBangla
+                          ? 'বিজ্ঞাপনটি শেষ পর্যন্ত দেখতে হবে!'
+                          : 'You must watch the full ad!'),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
+              }
+              _isAdLoading = false;
+            },
+            icon: const Icon(Icons.play_circle_fill),
+            label: Text(widget.isBangla ? 'অ্যাড দেখুন' : 'Watch Ad'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: primaryMaroon, foregroundColor: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     final bn = widget.isBangla;
@@ -161,74 +431,14 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
   }
 
   Widget _buildBody(bool bn, bool isDesktop) {
-    if (_isLoading || _isUnlocking) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(color: primaryMaroon),
-            if (_isUnlocking) ...[
-              const SizedBox(height: 16),
-              Text(bn ? 'অ্যাড লোড হচ্ছে...' : 'Loading ad...',
-                  style: const TextStyle(color: secondaryText)),
-            ]
-          ],
-        ),
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: primaryMaroon),
       );
     }
 
     if (_errorMessage != null) {
       return Center(child: Text(_errorMessage!));
-    }
-
-    // ✅ ইউজার অ্যাড না দেখলে লক স্ক্রিন দেখাবে (শুধু মোবাইলে)
-    if (!_isUnlocked) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(30),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.lock, size: 80, color: primaryGold),
-              const SizedBox(height: 20),
-              Text(
-                bn ? 'প্রোফাইলগুলো লক করা আছে' : 'Profiles are locked',
-                style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: deepMaroon),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                bn
-                    ? 'এই জেলার প্রোফাইলগুলো দেখতে একটি ছোট বিজ্ঞাপন দেখুন।'
-                    : 'Watch a short ad to view profiles in this district.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14, color: secondaryText),
-              ),
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: _showAdOnEnter,
-                  icon: const Icon(Icons.play_circle_fill),
-                  label: Text(
-                      bn ? '🎬 অ্যাড দেখে আনলক করুন' : '🎬 Watch Ad to Unlock',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryMaroon,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
     }
 
     if (_users.isEmpty) {
@@ -237,71 +447,80 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
               style: const TextStyle(fontSize: 16, color: secondaryText)));
     }
 
-    // ✅ আনলকড থাকলে মোবাইল বা ওয়েব লেআউট দেখাবে
-    return isDesktop ? _buildWebLayout(bn) : _buildMobileLayout(bn);
-  }
-
-  // ============================================================
-  // 📱 ১. মোবাইল লেআউট (হুবহু অক্ষত)
-  // ============================================================
-  Widget _buildMobileLayout(bool bn) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _users.length,
-      itemBuilder: (context, i) => _buildUserCard(_users[i], bn),
-    );
-  }
-
-  Widget _buildUserCard(UserProfile user, bool bn) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => UserProfileViewScreen(
-                      isBangla: widget.isBangla, user: user)));
-        },
+    // ✅ কার্ড সোয়াইপ লেআউট
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: kIsWeb ? 450 : double.infinity,
+          maxHeight: kIsWeb ? 600 : double.infinity,
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Column(
             children: [
-              Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    color: lightMaroon),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: user.photoUrl.isNotEmpty
-                      ? AppNetworkImage(user.photoUrl,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => const Icon(Icons.person,
-                              size: 40, color: primaryMaroon))
-                      : const Icon(Icons.person,
-                          size: 40, color: primaryMaroon),
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(user.name.isEmpty ? '—' : user.name,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Text('${user.age} • ${user.district}',
-                        style: const TextStyle(
-                            fontSize: 12, color: secondaryText)),
-                  ],
+                child: CardSwiper(
+                  controller: _swiperController,
+                  cardsCount: _users.length,
+                  numberOfCardsDisplayed: _users.length < 2 ? _users.length : 2,
+                  backCardOffset: const Offset(0, 30),
+                  padding: const EdgeInsets.all(8),
+                  onSwipe: (previousIndex, currentIndex, direction) {
+                    if (_isAdLoading) return false;
+                    if (_swipedCount >= _currentLimit) {
+                      _showAdPrompt();
+                      return false;
+                    }
+
+                    final swipedUser = _users[previousIndex];
+                    if (direction == CardSwiperDirection.right) {
+                      _likeUser(swipedUser);
+                    }
+
+                    setState(() {
+                      _swipedCount++;
+                    });
+
+                    return true;
+                  },
+                  cardBuilder: (context, index, horizontalOffsetPercentage,
+                      verticalOffsetPercentage) {
+                    return _buildSwipeCard(_users[index], bn);
+                  },
                 ),
               ),
-              const Icon(Icons.chevron_right, color: secondaryText),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildActionButton(
+                    icon: Icons.close,
+                    color: Colors.grey.shade400,
+                    onTap: () {
+                      if (_isAdLoading) return;
+                      if (_swipedCount >= _currentLimit) {
+                        _showAdPrompt();
+                        return;
+                      }
+                      _swiperController.swipe(CardSwiperDirection.left);
+                    },
+                  ),
+                  const SizedBox(width: 24),
+                  _buildActionButton(
+                    icon: Icons.favorite,
+                    color: primaryMaroon,
+                    onTap: () {
+                      if (_isAdLoading) return;
+                      if (_swipedCount >= _currentLimit) {
+                        _showAdPrompt();
+                        return;
+                      }
+                      _swiperController.swipe(CardSwiperDirection.right);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -310,142 +529,200 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
   }
 
   // ============================================================
-  // 💻 ২. ওয়েব লেআউট (নতুন প্রিমিয়াম গ্রিড ভিউ)
+  // SWIPE CARD
   // ============================================================
-  Widget _buildWebLayout(bool bn) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(30),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSwipeCard(UserProfile user, bool bn) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => UserProfileViewScreen(
+                    isBangla: widget.isBangla, user: user)));
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 8)),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
             children: [
-              // হেডার ইনফো (ঐচ্ছিক, সুন্দর দেখানোর জন্য)
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                        color: primaryMaroon.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(16)),
-                    child: const Icon(Icons.location_city,
-                        color: primaryMaroon, size: 30),
-                  ),
-                  const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.district,
-                        style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: deepMaroon),
+              Positioned.fill(
+                child: user.photoUrls.isNotEmpty
+                    ? _SwipeCardPhotoGallery(photoUrls: user.photoUrls)
+                    : Container(
+                        color: lightMaroon,
+                        child: const Center(
+                            child: Icon(Icons.person,
+                                size: 100, color: primaryMaroon)),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        bn
-                            ? 'মোট ${_users.length}টি প্রোফাইল পাওয়া গেছে'
-                            : '${_users.length} profiles found',
-                        style:
-                            const TextStyle(fontSize: 14, color: secondaryText),
-                      ),
-                    ],
-                  ),
-                ],
               ),
-              const SizedBox(height: 24),
-
-              // গ্রিড ভিউ
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 20,
-                  mainAxisSpacing: 20,
-                  mainAxisExtent: 320, // কার্ডের নির্দিষ্ট উচ্চতা
-                ),
-                itemCount: _users.length,
-                itemBuilder: (context, index) {
-                  final user = _users[index];
-
-                  return Container(
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 15,
-                            offset: const Offset(0, 8))
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.85)
+                        ],
+                        stops: const [0, 0.55, 1],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (BoostService.isBoostActive(user.boostedUntil))
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                            colors: [primaryGold, primaryMaroon]),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.bolt, color: Colors.white, size: 13),
+                          SizedBox(width: 3),
+                          Text('Boosted',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned(
+                top: 12,
+                right: 12,
+                child: IgnorePointer(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(20)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.touch_app,
+                            color: Colors.white, size: 13),
+                        const SizedBox(width: 4),
+                        Text(bn ? 'দেখতে ট্যাপ' : 'Tap to view',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600)),
                       ],
                     ),
-                    child: Material(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(20),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => UserProfileViewScreen(
-                                    isBangla: widget.isBangla, user: user))),
-                        hoverColor: primaryMaroon.withValues(alpha: 0.03),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // ইমেজ
-                            Expanded(
-                              flex: 5,
-                              child: ClipRRect(
-                                borderRadius: const BorderRadius.vertical(
-                                    top: Radius.circular(20)),
-                                child: user.photoUrl.isNotEmpty
-                                    ? AppNetworkImage(
-                                        user.photoUrl,
-                                        fit: BoxFit.cover,
-                                        errorWidget: (_, __, ___) =>
-                                            _imgPlaceholder(),
-                                      )
-                                    : _imgPlaceholder(),
-                              ),
-                            ),
-
-                            // ইনফো
-                            Expanded(
-                              flex: 3,
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      user.name.isEmpty ? '—' : user.name,
-                                      style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: mainText),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text('${user.age} • ${user.district}',
-                                        style: const TextStyle(
-                                            fontSize: 13,
-                                            color: secondaryText)),
-                                  ],
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 22,
+                child: IgnorePointer(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    user.name.isEmpty
+                                        ? (bn ? 'নাম নেই' : 'No name')
+                                        : user.name,
+                                    style: const TextStyle(
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
+                                if (user.isVerified) ...[
+                                  const SizedBox(width: 8),
+                                  const VerifiedBadge(size: 22),
+                                ],
+                              ],
+                            ),
+                          ),
+                          if (user.age.isNotEmpty) ...[
+                            const SizedBox(width: 10),
+                            Text(user.age,
+                                style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white)),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on,
+                              color: Colors.white, size: 16),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              user.district.isEmpty ? '—' : user.district,
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 14),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (user.profession.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(Icons.work_outline,
+                                color: Colors.white, size: 16),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                user.profession,
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 14),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ),
-                  );
-                },
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -454,11 +731,90 @@ class _DistrictUsersScreenState extends State<DistrictUsersScreen> {
     );
   }
 
-  Widget _imgPlaceholder() {
-    return Container(
-      color: lightMaroon,
-      child: const Center(
-          child: Icon(Icons.person, size: 80, color: primaryMaroon)),
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 62,
+        height: 62,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+                color: color.withValues(alpha: 0.3),
+                blurRadius: 15,
+                offset: const Offset(0, 5)),
+          ],
+        ),
+        child: Icon(icon, color: color, size: 30),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// SWIPE CARD PHOTO GALLERY
+// ============================================================
+class _SwipeCardPhotoGallery extends StatefulWidget {
+  final List<String> photoUrls;
+  const _SwipeCardPhotoGallery({required this.photoUrls});
+
+  @override
+  State<_SwipeCardPhotoGallery> createState() => _SwipeCardPhotoGalleryState();
+}
+
+class _SwipeCardPhotoGalleryState extends State<_SwipeCardPhotoGallery> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        AppNetworkImage(
+          widget.photoUrls[_currentIndex],
+          fit: BoxFit.cover,
+          placeholder: (_, __) => Container(color: lightMaroon),
+          errorWidget: (_, __, ___) => Container(
+            color: lightMaroon,
+            child: const Center(
+                child: Icon(Icons.person, size: 100, color: primaryMaroon)),
+          ),
+        ),
+        if (widget.photoUrls.length > 1)
+          Positioned(
+            top: 10,
+            left: 10,
+            right: 10,
+            child: IgnorePointer(
+              child: Row(
+                children: List.generate(
+                  widget.photoUrls.length,
+                  (index) => Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _currentIndex = index),
+                      child: Container(
+                        height: 3,
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        decoration: BoxDecoration(
+                          color: index == _currentIndex
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
