@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cached_network_image_platform_interface/cached_network_image_platform_interface.dart';
+import 'package:flutter/foundation.dart' show kIsWeb; // ✅ kIsWeb এর জন্য
 import 'package:flutter/material.dart';
 
 class AppNetworkImage extends StatelessWidget {
@@ -17,7 +18,6 @@ class AppNetworkImage extends StatelessWidget {
 
   const AppNetworkImage(
     this.imageUrl, {
-    // 👈 positional
     super.key,
     this.width,
     this.height,
@@ -35,7 +35,9 @@ class AppNetworkImage extends StatelessWidget {
     final isHttp =
         imageUrl.startsWith('http://') || imageUrl.startsWith('https://');
     final isBlob = imageUrl.startsWith('blob:') || imageUrl.startsWith('data:');
-    final isFile = !isHttp && !isBlob && File(imageUrl).existsSync();
+
+    // ✅ এখানে kIsWeb চেক যোগ করা হয়েছে, যাতে ওয়েবে File() কল না হয়
+    final isFile = !kIsWeb && !isHttp && !isBlob && File(imageUrl).existsSync();
 
     Widget img;
     if (isHttp) {
@@ -50,6 +52,7 @@ class AppNetworkImage extends StatelessWidget {
         errorWidget: errorWidget,
       );
     } else if (isFile) {
+      // মোবাইলের লোকাল ফাইলের জন্য
       img = Image.file(
         File(imageUrl),
         width: width,
@@ -58,6 +61,7 @@ class AppNetworkImage extends StatelessWidget {
         errorBuilder: errorBuilder,
       );
     } else {
+      // ✅ ওয়েবে blob: বা data: URL-এর জন্য Image.network নিখুঁতভাবে কাজ করে
       img = Image.network(
         imageUrl,
         width: width,

@@ -61,11 +61,11 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   final formKey = GlobalKey<FormState>();
 
   // ============================================================
-  // PROFILE PHOTOS
+  // PROFILE PHOTOS (✅ File এর বদলে XFile ব্যবহার করা হলো)
   // ============================================================
 
-  File? profileImage; // main photo
-  List<File> additionalImages = []; // additional photos (max 5)
+  XFile? profileImage; // main photo
+  List<XFile> additionalImages = []; // additional photos (max 5)
 
   final ImagePicker imagePicker = ImagePicker();
 
@@ -166,7 +166,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     if (image == null) return;
 
     setState(() {
-      profileImage = File(image.path);
+      profileImage = image;
     });
   }
 
@@ -195,7 +195,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     if (picked == null) return;
 
     setState(() {
-      additionalImages.add(File(picked.path));
+      additionalImages.add(picked);
     });
   }
 
@@ -370,7 +370,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
 
     if (!mounted) return;
 
-    // ✅ Show Loading Dialog while loading deferred library
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -384,6 +383,9 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     if (!mounted) return;
     Navigator.pop(context); // Close loading dialog
 
+    // ⚠️ লক্ষ্য করুন: এখানে XFile পাঠানো হচ্ছে।
+    // profile_preview_screen.dart-এ ProfilePreviewScreen-এর প্যারামিটার টাইপ
+    // File থেকে XFile-এ পরিবর্তন করতে হবে।
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -401,8 +403,8 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
           profession: widget.profession,
           height: widget.height,
           skinTone: widget.skinTone,
-          profileImage: profileImage,
-          additionalImages: additionalImages,
+          profileImage: profileImage, // 👈 XFile
+          additionalImages: additionalImages, // 👈 List<XFile>
           aboutMe: aboutController.text.trim(),
           preferredAge: preferredAge!,
           about: aboutController.text.trim(),
@@ -475,7 +477,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   }
 
   // ============================================================
-  // 📱 ১. মোবাইল লেআউট (হুবহু অক্ষত)
+  // 📱 ১. মোবাইল লেআউট
   // ============================================================
   Widget _buildMobileLayout() {
     return SafeArea(
@@ -511,7 +513,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                                   Icons.person,
                                   size: 75,
                                   color: primaryMaroon))
-                          : Image.file(profileImage!,
+                          : Image.file(File(profileImage!.path),
                               fit: BoxFit.cover, width: 150, height: 150))
                       : const Icon(Icons.person,
                           size: 75, color: primaryMaroon),
@@ -715,7 +717,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                                               const Icon(Icons.person,
                                                   size: 80,
                                                   color: primaryMaroon))
-                                      : Image.file(profileImage!,
+                                      : Image.file(File(profileImage!.path),
                                           fit: BoxFit.cover,
                                           width: 180,
                                           height: 180))
@@ -972,7 +974,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                                 color: lightMaroon,
                                 child: const Icon(Icons.person,
                                     color: primaryMaroon)))
-                        : Image.file(image,
+                        : Image.file(File(image.path),
                             width: 100, height: 110, fit: BoxFit.cover),
                   ),
                   Positioned(

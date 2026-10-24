@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
+import 'package:image_picker/image_picker.dart'; // ✅ XFile এর জন্য
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
@@ -29,8 +30,9 @@ class ProfilePreviewScreen extends StatefulWidget {
   final String height;
   final String skinTone;
 
-  final File? profileImage;
-  final List<File> additionalImages;
+  // ✅ File এর বদলে XFile ব্যবহার করা হলো
+  final XFile? profileImage;
+  final List<XFile> additionalImages;
 
   final String aboutMe;
   final String preferredAge;
@@ -76,18 +78,20 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
   static const String cloudinaryUploadPreset = 'jibon_sathi_profiles';
 
   // ============================================================
-  // IMAGE UPLOAD LOGIC
+  // IMAGE UPLOAD LOGIC (✅ Web & Mobile Friendly)
   // ============================================================
-  Future<String> uploadImageToCloudinary(File imageFile) async {
+  Future<String> uploadImageToCloudinary(XFile imageFile) async {
     final uri = Uri.parse(
       'https://api.cloudinary.com/v1_1/$cloudinaryCloudName/image/upload',
     );
 
+    // ✅ fromPath এর বদলে fromBytes ব্যবহার করা হলো
+    final bytes = await imageFile.readAsBytes();
     final request = http.MultipartRequest('POST', uri)
       ..fields['upload_preset'] = cloudinaryUploadPreset
       ..fields['folder'] = 'profile_images'
       ..files.add(
-        await http.MultipartFile.fromPath('file', imageFile.path),
+        http.MultipartFile.fromBytes('file', bytes, filename: imageFile.name),
       );
 
     final response = await request.send();
@@ -124,20 +128,18 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
       String photoUrl = '';
       List<String> photoUrls = [];
 
-      // ⚠️ ওয়েবে File আপলোড কাজ করে না, তাই চেক দেওয়া হলো
-      if (!kIsWeb) {
-        if (widget.profileImage != null) {
-          photoUrl = await uploadImageToCloudinary(widget.profileImage!);
-          if (photoUrl.isNotEmpty) photoUrls.add(photoUrl);
-        }
+      // ✅ ওয়েবেও ছবি আপলোড হবে (if (!kIsWeb) শর্তটি সরিয়ে দেওয়া হয়েছে)
+      if (widget.profileImage != null) {
+        photoUrl = await uploadImageToCloudinary(widget.profileImage!);
+        if (photoUrl.isNotEmpty) photoUrls.add(photoUrl);
+      }
 
-        for (final image in widget.additionalImages) {
-          try {
-            final url = await uploadImageToCloudinary(image);
-            if (url.isNotEmpty) photoUrls.add(url);
-          } catch (e) {
-            debugPrint("Image upload failed: $e");
-          }
+      for (final image in widget.additionalImages) {
+        try {
+          final url = await uploadImageToCloudinary(image);
+          if (url.isNotEmpty) photoUrls.add(url);
+        } catch (e) {
+          debugPrint("Image upload failed: $e");
         }
       }
 
@@ -183,7 +185,6 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
         ),
       );
 
-      // ✅ Show Loading Dialog while loading deferred home library
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -229,21 +230,19 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 🌐 স্ক্রিন যদি ৮০০ পিক্সেলের বড় হয় (তাহলে ওয়েব লেআউট দেখাবে)
         if (constraints.maxWidth > 800) {
           return _buildWebLayout(bn);
         }
-        // 📱 মোবাইলের জন্য অরিজিনাল লেআউট (কোনো পরিবর্তন নেই)
         return _buildMobileLayout(bn);
       },
     );
   }
 
   // ============================================================
-  // 📱 ১. মোবাইল লেআউট (আপনার অরিজিনাল ডিজাইন)
+  // 📱 ১. মোবাইল লেআউট
   // ============================================================
   Widget _buildMobileLayout(bool bn) {
-    final List<File> allPhotos = [
+    final List<XFile> allPhotos = [
       if (widget.profileImage != null) widget.profileImage!,
       ...widget.additionalImages,
     ];
@@ -303,12 +302,20 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
                                             () => _currentPhotoIndex = index);
                                       },
                                       itemBuilder: (context, index) {
-                                        return Image.file(
-                                          allPhotos[index],
-                                          width: 150,
-                                          height: 150,
-                                          fit: BoxFit.cover,
-                                        );
+                                        // ✅ ওয়েবের জন্য Image.network
+                                        return kIsWeb
+                                            ? Image.network(
+                                                allPhotos[index].path,
+                                                width: 150,
+                                                height: 150,
+                                                fit: BoxFit.cover,
+                                              )
+                                            : Image.file(
+                                                File(allPhotos[index].path),
+                                                width: 150,
+                                                height: 150,
+                                                fit: BoxFit.cover,
+                                              );
                                       },
                                     ),
                                   ),
@@ -550,7 +557,7 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
   // 🌐 ২. ওয়েব লেআউট
   // ============================================================
   Widget _buildWebLayout(bool bn) {
-    final List<File> allPhotos = [
+    final List<XFile> allPhotos = [
       if (widget.profileImage != null) widget.profileImage!,
       ...widget.additionalImages,
     ];
@@ -609,17 +616,17 @@ class _ProfilePreviewScreenState extends State<ProfilePreviewScreen> {
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                if (allPhotos.isNotEmpty && !kIsWeb)
-                                  Image.file(allPhotos[0], fit: BoxFit.cover)
-                                else if (kIsWeb)
-                                  Container(
-                                    color: Colors.grey.shade400,
-                                    child: const Center(
-                                        child: Text(
-                                            "Image not available on web",
-                                            style: TextStyle(
-                                                color: Colors.white))),
-                                  )
+                                // ✅ ওয়েবে Image.network এবং মোবাইলে Image.file
+                                if (allPhotos.isNotEmpty)
+                                  kIsWeb
+                                      ? Image.network(
+                                          allPhotos[0].path,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : Image.file(
+                                          File(allPhotos[0].path),
+                                          fit: BoxFit.cover,
+                                        )
                                 else
                                   const Icon(Icons.person,
                                       size: 100, color: Colors.white),
