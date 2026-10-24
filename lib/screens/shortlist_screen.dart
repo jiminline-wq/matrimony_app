@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter_card_swiper/flutter_card_swiper.dart';
 import 'package:flutter/foundation.dart'; // ✅ kIsWeb এর জন্য
 import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
 import '../models/user_profile.dart';
 import '../utils/shortlist_service.dart';
-import 'user_profile_view_screen.dart';
+import '../widgets/verified_badge.dart';
 import '../ads/banner_ad_widget.dart';
 import '../ads/ad_config.dart';
 import '../ads/rewarded_ad_manager.dart';
+
+// ✅ Deferred Loading Import for UserProfileViewScreen
+import 'user_profile_view_screen.dart' deferred as user_profile_view_lib;
 
 class ShortlistScreen extends StatefulWidget {
   final bool isBangla;
@@ -23,25 +26,36 @@ class ShortlistScreen extends StatefulWidget {
 }
 
 class _ShortlistScreenState extends State<ShortlistScreen> {
-  List<Map<String, dynamic>> saved = [];
+  List<UserProfile> savedProfiles = [];
   bool isLoading = true;
 
-  // ✅ অ্যাড আনলক স্টেট
+  // ✅ অ্যাড আনলক স্টেট (পেজে ঢোকার জন্য)
   bool _isUnlocked = false;
   bool _isUnlocking = false;
+
+  // ✅ রিওয়ার্ডেড অ্যাড লিমিট স্টেট (১০ সোয়াইপের জন্য)
+  int _swipedCount = 0;
+  int _currentLimit = 10;
+  bool _isAdLoading = false;
+
+  final CardSwiperController _swiperController = CardSwiperController();
 
   @override
   void initState() {
     super.initState();
     loadSaved();
 
-    // ✅ ওয়েবের জন্য সরাসরি আনলক
     if (kIsWeb) {
       _isUnlocked = true;
     } else {
-      // ✅ মোবাইলে পেজে ঢোকার সাথে সাথেই অ্যাড দেখানোর ফাংশন কল হবে
       _showAdOnEnter();
     }
+  }
+
+  @override
+  void dispose() {
+    _swiperController.dispose();
+    super.dispose();
   }
 
   // ✅ পেজে ঢোকার সাথে সাথে অ্যাড দেখানোর লজিক
@@ -63,6 +77,41 @@ class _ShortlistScreenState extends State<ShortlistScreen> {
     }
   }
 
+  // ✅ ডিফার্ড লোডিং নেভিগেশন
+  Future<void> _openProfile(UserProfile profile, bool bn) async {
+    if (_isAdLoading) return;
+
+    // ১০ সোয়াইপ লিমিট চেক
+    if (_swipedCount >= _currentLimit) {
+      _showAdPrompt();
+      return;
+    }
+    setState(() => _swipedCount++);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: primaryMaroon),
+      ),
+    );
+
+    await user_profile_view_lib.loadLibrary();
+
+    if (mounted) {
+      Navigator.pop(context); // Close loading dialog
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => user_profile_view_lib.UserProfileViewScreen(
+            isBangla: bn,
+            user: profile,
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> loadSaved() async {
     final me = FirebaseAuth.instance.currentUser;
     if (me == null) {
@@ -78,7 +127,7 @@ class _ShortlistScreenState extends State<ShortlistScreen> {
           .orderBy('savedAt', descending: true)
           .get();
 
-      final List<Map<String, dynamic>> loaded = [];
+      final List<UserProfile> loaded = [];
 
       for (final doc in snapshot.docs) {
         final uid = doc.data()['savedUid'] as String? ?? '';
@@ -87,16 +136,13 @@ class _ShortlistScreenState extends State<ShortlistScreen> {
         final profileDoc =
             await FirebaseFirestore.instance.collection('users').doc(uid).get();
         if (profileDoc.exists) {
-          loaded.add({
-            'profile':
-                UserProfile.fromMap(profileDoc.data()!, docId: profileDoc.id),
-            'savedAt': doc.data()['savedAt'],
-          });
+          loaded.add(
+              UserProfile.fromMap(profileDoc.data()!, docId: profileDoc.id));
         }
       }
 
       setState(() {
-        saved = loaded;
+        savedProfiles = loaded;
         isLoading = false;
       });
     } catch (e) {
@@ -104,34 +150,133 @@ class _ShortlistScreenState extends State<ShortlistScreen> {
     }
   }
 
-  Future<void> _removeFromShortlist(UserProfile profile) async {
+  // ✅ প্যারামিটারের নাম 'askConfirmation' করা হয়েছে যাতে showDialog() ফাংশনের সাথে কনফ্লিক্ট না হয়
+  Future<void> _removeFromShortlist(UserProfile profile,
+      {bool askConfirmation = true}) async {
     final me = FirebaseAuth.instance.currentUser;
     if (me == null) return;
     final bn = widget.isBangla;
 
-    final confirmed = await showDialog<bool>(
+    if (askConfirmation) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(bn ? 'সরিয়ে ফেলবেন?' : 'Remove?'),
+          content: Text(bn
+              ? '${profile.name}-কে সরিয়ে ফেলবেন?'
+              : 'Remove ${profile.name}?'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(bn ? 'বাতিল' : 'Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(bn ? 'সরান' : 'Remove',
+                    style: const TextStyle(color: Colors.red))),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+    }
+
+    // UI থেকে সরিয়ে দেওয়া যাতে সাথে সাথে আপডেট দেখা যায়
+    setState(() {
+      savedProfiles.removeWhere((p) => p.uid == profile.uid);
+    });
+
+    final success =
+        await ShortlistService.removeUser(myUid: me.uid, theirUid: profile.uid);
+
+    if (!success && mounted) {
+      // যদি ডেটাবেসে ডিলিট ফেইল করে, তবে আবার লোড করে দেখানো
+      loadSaved();
+    }
+  }
+
+  // ============================================================
+  // ✅ ১০ সোয়াইপ পর অ্যাড প্রম্পট ডায়ালগ
+  // ============================================================
+  Future<void> _showAdPrompt() async {
+    if (_isAdLoading) return;
+    _isAdLoading = true;
+
+    showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(bn ? 'সরিয়ে ফেলবেন?' : 'Remove?'),
-        content: Text(bn
-            ? '${profile.name}-কে সরিয়ে ফেলবেন?'
-            : 'Remove ${profile.name}?'),
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.lock, color: primaryGold, size: 28),
+            const SizedBox(width: 8),
+            Text(widget.isBangla ? 'লিমিট শেষ!' : 'Limit Reached!',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          widget.isBangla
+              ? 'আপনি $_currentLimit টি প্রোফাইল দেখেছেন। আরও ১০টি প্রোফাইল দেখতে একটি ছোট বিজ্ঞাপন দেখুন।'
+              : 'You have viewed $_currentLimit profiles. Watch a short ad to see 10 more profiles.',
+          style: const TextStyle(fontSize: 15, height: 1.5),
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(bn ? 'বাতিল' : 'Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(bn ? 'সরান' : 'Remove',
-                  style: const TextStyle(color: Colors.red))),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _isAdLoading = false;
+            },
+            child: Text(widget.isBangla ? 'বাতিল' : 'Cancel',
+                style: const TextStyle(color: secondaryText)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              if (kIsWeb) {
+                setState(() => _currentLimit += 10);
+                _isAdLoading = false;
+                return;
+              }
+
+              final success =
+                  await RewardedAdManager.showAd(onUserEarnedReward: () {});
+
+              if (success) {
+                setState(() => _currentLimit += 10);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(widget.isBangla
+                          ? '✅ আরও ১০টি প্রোফাইল আনলক হয়েছে!'
+                          : '✅ 10 more profiles unlocked!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } else {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(widget.isBangla
+                          ? 'বিজ্ঞাপনটি শেষ পর্যন্ত দেখতে হবে!'
+                          : 'You must watch the full ad!'),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
+              }
+              _isAdLoading = false;
+            },
+            icon: const Icon(Icons.play_circle_fill),
+            label: Text(widget.isBangla ? 'অ্যাড দেখুন' : 'Watch Ad'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: primaryMaroon, foregroundColor: Colors.white),
+          ),
         ],
       ),
     );
-
-    if (confirmed != true) return;
-    final success =
-        await ShortlistService.removeUser(myUid: me.uid, theirUid: profile.uid);
-    if (success) loadSaved();
   }
 
   @override
@@ -142,6 +287,7 @@ class _ShortlistScreenState extends State<ShortlistScreen> {
       appBar: AppBar(
         backgroundColor: warmWhite,
         elevation: 0,
+        centerTitle: true,
         title: Text(bn ? 'সংরক্ষিত প্রোফাইল' : 'Saved Profiles',
             style: const TextStyle(
                 color: deepMaroon, fontWeight: FontWeight.bold)),
@@ -152,14 +298,15 @@ class _ShortlistScreenState extends State<ShortlistScreen> {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final isDesktop = constraints.maxWidth > 800;
-                return _buildBody(bn, isDesktop);
+                return _buildBody(bn, constraints.maxWidth > 800);
               },
             ),
           ),
-          // ✅ AdMob শুধু মোবাইলে
           if (_isUnlocked && !kIsWeb)
-            const BannerAdWidget(placementId: AdConfig.placementSaved),
+            const SafeArea(
+              top: false,
+              child: BannerAdWidget(placementId: AdConfig.placementSaved),
+            ),
         ],
       ),
     );
@@ -182,7 +329,6 @@ class _ShortlistScreenState extends State<ShortlistScreen> {
       );
     }
 
-    // ✅ ইউজার অ্যাড না দেখলে লক স্ক্রিন দেখাবে (শুধু মোবাইলে)
     if (!_isUnlocked) {
       return Center(
         child: Padding(
@@ -232,256 +378,284 @@ class _ShortlistScreenState extends State<ShortlistScreen> {
       );
     }
 
-    if (saved.isEmpty) {
+    if (savedProfiles.isEmpty) {
       return Center(
-        child: Text(
-            bn ? 'এখনো কোনো profile save করেননি' : 'No saved profiles yet',
-            style: const TextStyle(fontSize: 16, color: secondaryText)),
+        child: Padding(
+          padding: const EdgeInsets.all(30),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.bookmark_border, size: 60, color: primaryMaroon),
+              const SizedBox(height: 24),
+              Text(
+                  bn
+                      ? 'এখনো কোনো profile save করেননি'
+                      : 'No saved profiles yet',
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
       );
     }
 
-    // ✅ আনলকড থাকলে মোবাইল বা ওয়েব লেআউট দেখাবে
-    return isDesktop ? _buildWebLayout(bn) : _buildMobileLayout(bn);
-  }
-
-  // ============================================================
-  // 📱 ১. মোবাইল লেআউট (হুবহু অক্ষত)
-  // ============================================================
-  Widget _buildMobileLayout(bool bn) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: saved.length,
-      itemBuilder: (context, index) {
-        final item = saved[index];
-        final profile = item['profile'] as UserProfile;
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(18)),
-          child: Row(
+    // ✅ কার্ড সোয়াইপ লেআউট
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: kIsWeb ? 450 : double.infinity,
+          maxHeight: kIsWeb ? 600 : double.infinity,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Column(
             children: [
-              GestureDetector(
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => UserProfileViewScreen(
-                            isBangla: bn, user: profile))),
-                child: Container(
-                  width: 70,
-                  height: 70,
-                  decoration:
-                      BoxDecoration(shape: BoxShape.circle, color: lightMaroon),
-                  child: ClipOval(
-                    child: profile.photoUrl.isNotEmpty
-                        ? AppNetworkImage(profile.photoUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                const Icon(Icons.person, color: primaryMaroon))
-                        : const Icon(Icons.person, color: primaryMaroon),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(profile.name,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
-                    Text('${profile.age} • ${profile.district}',
-                        style: const TextStyle(
-                            fontSize: 12, color: secondaryText)),
-                  ],
+                child: CardSwiper(
+                  controller: _swiperController,
+                  cardsCount: savedProfiles.length,
+                  numberOfCardsDisplayed:
+                      savedProfiles.length < 2 ? savedProfiles.length : 2,
+                  backCardOffset: const Offset(0, 30),
+                  padding: const EdgeInsets.all(8),
+                  onSwipe: (previousIndex, currentIndex, direction) {
+                    if (_isAdLoading) return false;
+                    if (_swipedCount >= _currentLimit) {
+                      _showAdPrompt();
+                      return false;
+                    }
+
+                    final swipedUser = savedProfiles[previousIndex];
+
+                    // ডানে সোয়াইপ = প্রোফাইল দেখতে যাবে
+                    // বামে সোয়াইপ = শর্টলিস্ট থেকে রিমুভ হবে
+                    if (direction == CardSwiperDirection.right) {
+                      _openProfile(swipedUser, bn);
+                    } else if (direction == CardSwiperDirection.left) {
+                      // কনফার্মেশন ছাড়াই রিমুভ করে দিচ্ছি যাতে সোয়াইপ স্মুথ লাগে
+                      _removeFromShortlist(swipedUser, askConfirmation: false);
+                    }
+
+                    setState(() {
+                      _swipedCount++;
+                    });
+
+                    return true;
+                  },
+                  cardBuilder: (context, index, horizontalOffsetPercentage,
+                      verticalOffsetPercentage) {
+                    return _buildSwipeCard(savedProfiles[index], bn);
+                  },
                 ),
               ),
-              IconButton(
-                onPressed: () => _removeFromShortlist(profile),
-                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildActionButton(
+                    icon: Icons.delete_outline,
+                    color: Colors.redAccent,
+                    onTap: () {
+                      if (_isAdLoading) return;
+                      if (_swipedCount >= _currentLimit) {
+                        _showAdPrompt();
+                        return;
+                      }
+                      _swiperController.swipe(CardSwiperDirection.left);
+                    },
+                  ),
+                  const SizedBox(width: 24),
+                  _buildActionButton(
+                    icon: Icons.visibility,
+                    color: primaryMaroon,
+                    onTap: () {
+                      if (_isAdLoading) return;
+                      if (_swipedCount >= _currentLimit) {
+                        _showAdPrompt();
+                        return;
+                      }
+                      _swiperController.swipe(CardSwiperDirection.right);
+                    },
+                  ),
+                ],
               ),
+              const SizedBox(height: 20),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
   // ============================================================
-  // 💻 ২. ওয়েব লেআউট (নতুন প্রিমিয়াম গ্রিড ভিউ)
+  // SWIPE CARD
   // ============================================================
-  Widget _buildWebLayout(bool bn) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(30),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSwipeCard(UserProfile user, bool bn) {
+    return GestureDetector(
+      onTap: () => _openProfile(user, bn),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 8)),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
             children: [
-              // হেডার
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                        color: primaryMaroon.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(16)),
-                    child: const Icon(Icons.bookmark,
-                        color: primaryMaroon, size: 30),
-                  ),
-                  const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        bn ? 'সংরক্ষিত প্রোফাইল' : 'Saved Profiles',
-                        style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: deepMaroon),
+              Positioned.fill(
+                child: user.photoUrls.isNotEmpty
+                    ? _SwipeCardPhotoGallery(photoUrls: user.photoUrls)
+                    : Container(
+                        color: lightMaroon,
+                        child: const Center(
+                            child: Icon(Icons.person,
+                                size: 100, color: primaryMaroon)),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        bn
-                            ? 'মোট ${saved.length} জনকে সেভ করেছেন'
-                            : '${saved.length} profiles saved',
-                        style:
-                            const TextStyle(fontSize: 14, color: secondaryText),
-                      ),
-                    ],
-                  ),
-                ],
               ),
-              const SizedBox(height: 24),
-
-              // গ্রিড ভিউ
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 20,
-                  mainAxisSpacing: 20,
-                  mainAxisExtent: 320, // কার্ডের নির্দিষ্ট উচ্চতা
-                ),
-                itemCount: saved.length,
-                itemBuilder: (context, index) {
-                  final item = saved[index];
-                  final profile = item['profile'] as UserProfile;
-
-                  return Container(
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.85)
+                        ],
+                        stops: const [0, 0.55, 1],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Saved Badge
+              Positioned(
+                top: 12,
+                left: 12,
+                child: IgnorePointer(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: primaryMaroon.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 15,
-                            offset: const Offset(0, 8))
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.bookmark, color: Colors.white, size: 13),
+                        SizedBox(width: 3),
+                        Text('Saved',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold)),
                       ],
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 12,
+                right: 12,
+                child: IgnorePointer(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(20)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        // ইমেজ
-                        Expanded(
-                          flex: 5,
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(20)),
-                            child: profile.photoUrl.isNotEmpty
-                                ? AppNetworkImage(profile.photoUrl,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        _imgPlaceholder())
-                                : _imgPlaceholder(),
-                          ),
-                        ),
-
-                        // ইনফো
-                        Expanded(
-                          flex: 4,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                        const Icon(Icons.touch_app,
+                            color: Colors.white, size: 13),
+                        const SizedBox(width: 4),
+                        Text(bn ? 'দেখতে ট্যাপ' : 'Tap to view',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 22,
+                child: IgnorePointer(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      profile.name.isEmpty
-                                          ? 'নাম নেই'
-                                          : profile.name,
-                                      style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: mainText),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text('${profile.age} • ${profile.district}',
-                                        style: const TextStyle(
-                                            fontSize: 13,
-                                            color: secondaryText)),
-                                  ],
+                                Flexible(
+                                  child: Text(
+                                    user.name.isEmpty
+                                        ? (bn ? 'নাম নেই' : 'No name')
+                                        : user.name,
+                                    style: const TextStyle(
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: OutlinedButton(
-                                        onPressed: () => Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                                builder: (_) =>
-                                                    UserProfileViewScreen(
-                                                        isBangla: bn,
-                                                        user: profile))),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: primaryMaroon,
-                                          side: BorderSide(
-                                              color: primaryMaroon.withValues(
-                                                  alpha: 0.3)),
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(10)),
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 8),
-                                        ),
-                                        child: Text(bn ? 'দেখুন' : 'View',
-                                            style: const TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold)),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      onPressed: () =>
-                                          _removeFromShortlist(profile),
-                                      icon: const Icon(Icons.delete_outline,
-                                          color: Colors.redAccent),
-                                      style: IconButton.styleFrom(
-                                        backgroundColor:
-                                            Colors.red.withValues(alpha: 0.1),
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(10)),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                if (user.isVerified) ...[
+                                  const SizedBox(width: 8),
+                                  const VerifiedBadge(size: 22),
+                                ],
                               ],
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                          if (user.age.isNotEmpty) ...[
+                            const SizedBox(width: 10),
+                            Text(user.age,
+                                style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white)),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on,
+                              color: Colors.white, size: 16),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              user.district.isEmpty ? '—' : user.district,
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 14),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -490,11 +664,90 @@ class _ShortlistScreenState extends State<ShortlistScreen> {
     );
   }
 
-  Widget _imgPlaceholder() {
-    return Container(
-      color: lightMaroon,
-      child: const Center(
-          child: Icon(Icons.person, size: 80, color: primaryMaroon)),
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 62,
+        height: 62,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+                color: color.withValues(alpha: 0.3),
+                blurRadius: 15,
+                offset: const Offset(0, 5)),
+          ],
+        ),
+        child: Icon(icon, color: color, size: 30),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// SWIPE CARD PHOTO GALLERY
+// ============================================================
+class _SwipeCardPhotoGallery extends StatefulWidget {
+  final List<String> photoUrls;
+  const _SwipeCardPhotoGallery({required this.photoUrls});
+
+  @override
+  State<_SwipeCardPhotoGallery> createState() => _SwipeCardPhotoGalleryState();
+}
+
+class _SwipeCardPhotoGalleryState extends State<_SwipeCardPhotoGallery> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        AppNetworkImage(
+          widget.photoUrls[_currentIndex],
+          fit: BoxFit.cover,
+          placeholder: (_, __) => Container(color: lightMaroon),
+          errorWidget: (_, __, ___) => Container(
+            color: lightMaroon,
+            child: const Center(
+                child: Icon(Icons.person, size: 100, color: primaryMaroon)),
+          ),
+        ),
+        if (widget.photoUrls.length > 1)
+          Positioned(
+            top: 10,
+            left: 10,
+            right: 10,
+            child: IgnorePointer(
+              child: Row(
+                children: List.generate(
+                  widget.photoUrls.length,
+                  (index) => Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _currentIndex = index),
+                      child: Container(
+                        height: 3,
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        decoration: BoxDecoration(
+                          color: index == _currentIndex
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
