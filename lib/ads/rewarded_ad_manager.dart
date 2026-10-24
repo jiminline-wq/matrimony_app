@@ -2,10 +2,10 @@
 // REWARDED AD MANAGER — Watch ad → Get reward
 // ============================================================
 
+import 'dart:async'; // ✅ Completer এর জন্য
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'ad_config.dart';
-import 'dart:async'; // ✅ উপরে যোগ করুন (Completer এর জন্য)
 
 class RewardedAdManager {
   static RewardedAd? _rewardedAd;
@@ -20,6 +20,9 @@ class RewardedAdManager {
   // LOAD AD (pre-load so it's ready when user taps)
   // ============================================================
   static Future<void> loadAd() async {
+    // ✅ ওয়েবে অ্যাড লোড হবে না
+    if (kIsWeb) return;
+
     if (_rewardedAd != null) {
       debugPrint('✅ [RewardedAd] Already loaded');
       return;
@@ -90,14 +93,21 @@ class RewardedAdManager {
   // ============================================================
   // CHECK READY
   // ============================================================
-  static bool get isReady => _rewardedAd != null;
+  // ✅ ওয়েবে কখনোই রেডি হবে না
+  static bool get isReady => !kIsWeb && _rewardedAd != null;
 
-// ============================================================
-// SHOW AD + WAIT FOR REWARD (FIXED)
-// ============================================================
+  // ============================================================
+  // SHOW AD + WAIT FOR REWARD (FIXED)
+  // ============================================================
   static Future<bool> showAd({
     required VoidCallback onUserEarnedReward,
   }) async {
+    // ✅ ওয়েবে সরাসরি false রিটার্ন করবে (যাতে ক্র্যাশ না করে)
+    if (kIsWeb) {
+      debugPrint('⚠️ [RewardedAd] Web does not support AdMob');
+      return false;
+    }
+
     // If not ready, try to load
     if (_rewardedAd == null) {
       debugPrint('⚠️ [RewardedAd] Not ready — loading now...');
