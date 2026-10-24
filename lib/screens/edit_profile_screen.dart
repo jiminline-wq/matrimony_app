@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb; // 👈 ওয়েব চেক করার জন্য যোগ করা হয়েছে
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -61,11 +62,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool isSaving = false;
 
   // ============================================================
-  // PHOTO GALLERY STATE
+  // PHOTO GALLERY STATE (File এর বদলে XFile)
   // ============================================================
 
-  File? newProfileImage; // নতুন main photo (ঐচ্ছিক)
-  List<File> newAdditionalImages = []; // নতুন additional photos
+  XFile? newMainPhoto; // নতুন main photo (ঐচ্ছিক)
+  List<XFile> newAdditionalPhotos = []; // নতুন additional photos
   List<String> existingPhotoUrls = []; // Firestore থেকে আসা photos
 
   final ImagePicker imagePicker = ImagePicker();
@@ -89,139 +90,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   ];
 
   final List<String> districts = [
-    'Bagerhat',
-    'Bandarban',
-    'Barguna',
-    'Barishal',
-    'Bhola',
-    'Bogura',
-    'Brahmanbaria',
-    'Chandpur',
-    'Chattogram',
-    'Chuadanga',
-    "Cox's Bazar",
-    'Cumilla',
-    'Dhaka',
-    'Dinajpur',
-    'Faridpur',
-    'Feni',
-    'Gaibandha',
-    'Gazipur',
-    'Gopalganj',
-    'Habiganj',
-    'Jamalpur',
-    'Jashore',
-    'Jhalokathi',
-    'Jhenaidah',
-    'Joypurhat',
-    'Khagrachhari',
-    'Khulna',
-    'Kishoreganj',
-    'Kurigram',
-    'Kushtia',
-    'Lakshmipur',
-    'Lalmonirhat',
-    'Madaripur',
-    'Magura',
-    'Manikganj',
-    'Meherpur',
-    'Moulvibazar',
-    'Munshiganj',
-    'Mymensingh',
-    'Naogaon',
-    'Narail',
-    'Narayanganj',
-    'Narsingdi',
-    'Natore',
-    'Netrokona',
-    'Nilphamari',
-    'Noakhali',
-    'Pabna',
-    'Panchagarh',
-    'Patuakhali',
-    'Pirojpur',
-    'Rajbari',
-    'Rajshahi',
-    'Rangamati',
-    'Rangpur',
-    'Satkhira',
-    'Shariatpur',
-    'Sherpur',
-    'Sirajganj',
-    'Sunamganj',
-    'Sylhet',
-    'Tangail',
-    'Thakurgaon',
+    'Bagerhat', 'Bandarban', 'Barguna', 'Barishal', 'Bhola', 'Bogura',
+    'Brahmanbaria', 'Chandpur', 'Chattogram', 'Chuadanga', "Cox's Bazar",
+    'Cumilla', 'Dhaka', 'Dinajpur', 'Faridpur', 'Feni', 'Gaibandha', 'Gazipur',
+    'Gopalganj', 'Habiganj', 'Jamalpur', 'Jashore', 'Jhalokathi', 'Jhenaidah',
+    'Joypurhat', 'Khagrachhari', 'Khulna', 'Kishoreganj', 'Kurigram', 'Kushtia',
+    'Lakshmipur', 'Lalmonirhat', 'Madaripur', 'Magura', 'Manikganj', 'Meherpur',
+    'Moulvibazar', 'Munshiganj', 'Mymensingh', 'Naogaon', 'Narail', 'Narayanganj',
+    'Narsingdi', 'Natore', 'Netrokona', 'Nilphamari', 'Noakhali', 'Pabna',
+    'Panchagarh', 'Patuakhali', 'Pirojpur', 'Rajbari', 'Rajshahi', 'Rangamati',
+    'Rangpur', 'Satkhira', 'Shariatpur', 'Sherpur', 'Sirajganj', 'Sunamganj',
+    'Sylhet', 'Tangail', 'Thakurgaon',
   ];
 
   final List<String> maritalStatuses = [
-    'Never Married',
-    'Divorced',
-    'Widowed',
-    'Separated',
+    'Never Married', 'Divorced', 'Widowed', 'Separated',
   ];
 
   final List<String> preferredAgeOptions = [
-    '18 - 22',
-    '23 - 27',
-    '28 - 32',
-    '33 - 37',
-    '38 - 42',
-    '43 - 50',
-    'Any Age',
+    '18 - 22', '23 - 27', '28 - 32', '33 - 37', '38 - 42', '43 - 50', 'Any Age',
   ];
 
   final List<String> preferredReligionOptions = [
-    'Islam',
-    'Hinduism',
-    'Christianity',
-    'Buddhism',
-    'Other',
-    'Any Religion',
+    'Islam', 'Hinduism', 'Christianity', 'Buddhism', 'Other', 'Any Religion',
   ];
 
   final List<String> preferredEducationOptions = [
-    'SSC',
-    'HSC',
-    'Diploma',
-    'Bachelor',
-    'BSc',
-    'BSc in Engineering',
-    'BA',
-    'BBA',
-    'BSS',
-    'BCom',
-    'LLB',
-    'MBBS',
-    'BDS',
-    'BPharm',
-    'BSc Nursing',
-    'Master',
-    'MSc',
-    'MA',
-    'MBA',
-    'MSS',
-    'LLM',
-    'MPharm',
-    'MPH',
-    'MPhil',
-    'PhD',
-    'Any Education',
+    'SSC', 'HSC', 'Diploma', 'Bachelor', 'BSc', 'BSc in Engineering', 'BA',
+    'BBA', 'BSS', 'BCom', 'LLB', 'MBBS', 'BDS', 'BPharm', 'BSc Nursing',
+    'Master', 'MSc', 'MA', 'MBA', 'MSS', 'LLM', 'MPharm', 'MPH', 'MPhil',
+    'PhD', 'Any Education',
   ];
 
   final List<String> preferredProfessionOptions = [
-    'Government Job',
-    'Private Job',
-    'Teacher',
-    'Engineer',
-    'Doctor',
-    'Banker',
-    'Lawyer',
-    'Freelancer',
-    'Business',
-    'Student',
-    'House Maker',
-    'Other',
+    'Government Job', 'Private Job', 'Teacher', 'Engineer', 'Doctor', 'Banker',
+    'Lawyer', 'Freelancer', 'Business', 'Student', 'House Maker', 'Other',
     'Any Profession',
   ];
 
@@ -288,12 +191,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (picked == null) return;
 
     setState(() {
-      newProfileImage = File(picked.path);
+      newMainPhoto = picked;
     });
   }
 
   Future<void> pickAdditionalPhoto() async {
-    final totalPhotos = existingPhotoUrls.length + newAdditionalImages.length;
+    final totalPhotos = existingPhotoUrls.length + newAdditionalPhotos.length;
 
     if (totalPhotos >= 6) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -319,7 +222,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (picked == null) return;
 
     setState(() {
-      newAdditionalImages.add(File(picked.path));
+      newAdditionalPhotos.add(picked);
     });
   }
 
@@ -331,24 +234,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   void removeNewAdditionalPhoto(int index) {
     setState(() {
-      newAdditionalImages.removeAt(index);
+      newAdditionalPhotos.removeAt(index);
     });
   }
 
   // ============================================================
-  // UPLOAD TO CLOUDINARY
+  // UPLOAD TO CLOUDINARY (Mobile & Web Safe)
   // ============================================================
 
-  Future<String> uploadToCloudinary(File imageFile) async {
+  Future<String> uploadToCloudinary(XFile imageFile) async {
     final uri = Uri.parse(
       'https://api.cloudinary.com/v1_1/$cloudinaryCloudName/image/upload',
     );
 
+    // ওয়েব এবং মোবাইল দুটোতেই কাজ করার জন্য readAsBytes ব্যবহার করা হলো
+    final bytes = await imageFile.readAsBytes();
+    
     final request = http.MultipartRequest('POST', uri)
       ..fields['upload_preset'] = cloudinaryUploadPreset
       ..fields['folder'] = 'profile_images'
       ..files.add(
-        await http.MultipartFile.fromPath('file', imageFile.path),
+        http.MultipartFile.fromBytes('file', bytes, filename: imageFile.name),
       );
 
     final response = await request.send();
@@ -385,20 +291,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         throw Exception('User not logged in');
       }
 
-      // ========================================================
       // STEP 1: Upload new main photo (if changed)
-      // ========================================================
       String mainPhotoUrl = widget.profile.photoUrl;
 
-      if (newProfileImage != null) {
-        mainPhotoUrl = await uploadToCloudinary(newProfileImage!);
+      if (newMainPhoto != null) {
+        mainPhotoUrl = await uploadToCloudinary(newMainPhoto!);
       }
 
-      // ========================================================
       // STEP 2: Upload new additional photos
-      // ========================================================
       final List<String> uploadedNewPhotos = [];
-      for (final image in newAdditionalImages) {
+      for (final image in newAdditionalPhotos) {
         try {
           final url = await uploadToCloudinary(image);
           uploadedNewPhotos.add(url);
@@ -407,18 +309,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         }
       }
 
-      // ========================================================
       // STEP 3: Combine photo URLs
-      // ========================================================
       final List<String> finalPhotoUrls = [
         if (mainPhotoUrl.isNotEmpty) mainPhotoUrl,
         ...existingPhotoUrls.where((url) => url != mainPhotoUrl),
         ...uploadedNewPhotos,
       ];
 
-      // ========================================================
       // STEP 4: Update Firestore
-      // ========================================================
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -591,7 +489,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   // ============================================================
 
   Widget _buildPhotoGallery(bool bn) {
-    final totalPhotos = existingPhotoUrls.length + newAdditionalImages.length;
+    final totalPhotos = existingPhotoUrls.length + newAdditionalPhotos.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -668,17 +566,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       width: 2,
                     ),
                   ),
-                  child: newProfileImage != null
+                  child: newMainPhoto != null
                       ? Stack(
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.file(
-                                newProfileImage!,
-                                width: 110,
-                                height: 130,
-                                fit: BoxFit.cover,
-                              ),
+                              // ওয়েব এবং মোবাইলের জন্য আলাদা ইমেজ রেন্ডারিং
+                              child: kIsWeb
+                                  ? Image.network(
+                                      newMainPhoto!.path,
+                                      width: 110,
+                                      height: 130,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.file(
+                                      File(newMainPhoto!.path),
+                                      width: 110,
+                                      height: 130,
+                                      fit: BoxFit.cover,
+                                    ),
                             ),
                             Positioned(
                               top: 4,
@@ -779,7 +685,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               }),
 
               // New additional photos
-              ...newAdditionalImages.asMap().entries.map((entry) {
+              ...newAdditionalPhotos.asMap().entries.map((entry) {
                 final index = entry.key;
                 final image = entry.value;
 
@@ -791,12 +697,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(14),
-                        child: Image.file(
-                          image,
-                          width: 110,
-                          height: 130,
-                          fit: BoxFit.cover,
-                        ),
+                        // ওয়েব এবং মোবাইলের জন্য আলাদা ইমেজ রেন্ডারিং
+                        child: kIsWeb
+                            ? Image.network(
+                                image.path,
+                                width: 110,
+                                height: 130,
+                                fit: BoxFit.cover,
+                              )
+                            : Image.file(
+                                File(image.path),
+                                width: 110,
+                                height: 130,
+                                fit: BoxFit.cover,
+                              ),
                       ),
                       Positioned(
                         top: 4,
@@ -938,23 +852,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
             children: [
-              // ==================================================
-              // PHOTO GALLERY (NEW)
-              // ==================================================
-
               _buildPhotoGallery(bn),
-
               const SizedBox(height: 10),
-
-              // ==================================================
-              // BASIC INFORMATION
-              // ==================================================
-
               sectionHeader(
                 icon: Icons.person_outline,
                 title: bn ? 'মৌলিক তথ্য' : 'Basic Information',
               ),
-
               TextFormField(
                 controller: nameController,
                 decoration: fieldDecoration(
@@ -968,33 +871,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   return null;
                 },
               ),
-
               const SizedBox(height: 14),
-
               buildDropdown(
                 label: bn ? 'লিঙ্গ' : 'Gender',
                 icon: Icons.wc_outlined,
                 value: gender,
                 items: genderOptions,
-                onChanged: (value) {
-                  setState(() => gender = value);
-                },
+                onChanged: (value) => setState(() => gender = value),
               ),
-
               const SizedBox(height: 14),
-
               buildDropdown(
                 label: bn ? 'ধর্ম' : 'Religion',
                 icon: Icons.auto_awesome_outlined,
                 value: religion,
                 items: religionOptions,
-                onChanged: (value) {
-                  setState(() => religion = value);
-                },
+                onChanged: (value) => setState(() => religion = value),
               ),
-
               const SizedBox(height: 14),
-
               TextFormField(
                 controller: ageController,
                 keyboardType: TextInputType.number,
@@ -1014,77 +907,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   return null;
                 },
               ),
-
               const SizedBox(height: 14),
-
               buildDropdown(
                 label: bn ? 'জেলা' : 'District',
                 icon: Icons.location_on_outlined,
                 value: district,
                 items: districts,
-                onChanged: (value) {
-                  setState(() => district = value);
-                },
+                onChanged: (value) => setState(() => district = value),
               ),
-
               const SizedBox(height: 14),
-
               buildDropdown(
                 label: bn ? 'বৈবাহিক অবস্থা' : 'Marital Status',
                 icon: Icons.favorite_border,
                 value: maritalStatus,
                 items: maritalStatuses,
-                onChanged: (value) {
-                  setState(() => maritalStatus = value);
-                },
+                onChanged: (value) => setState(() => maritalStatus = value),
               ),
-
               const SizedBox(height: 14),
-
               buildDropdown(
                 label: bn ? 'উচ্চতা' : 'Height',
                 icon: Icons.height,
                 value: height,
                 items: const [
-                  "4'6\"",
-                  "4'7\"",
-                  "4'8\"",
-                  "4'9\"",
-                  "4'10\"",
-                  "4'11\"",
-                  "5'0\"",
-                  "5'1\"",
-                  "5'2\"",
-                  "5'3\"",
-                  "5'4\"",
-                  "5'5\"",
-                  "5'6\"",
-                  "5'7\"",
-                  "5'8\"",
-                  "5'9\"",
-                  "5'10\"",
-                  "5'11\"",
-                  "6'0\"",
-                  "6'1\"",
-                  "6'2\"",
-                  "6'3\"",
-                  "6'4\"",
-                  "6'5\"",
-                  "6'6\"",
-                  "6'7\"",
-                  "6'8\"",
-                  "6'9\"",
-                  "6'10\"",
-                  "6'11\"",
+                  "4'6\"", "4'7\"", "4'8\"", "4'9\"", "4'10\"", "4'11\"",
+                  "5'0\"", "5'1\"", "5'2\"", "5'3\"", "5'4\"", "5'5\"",
+                  "5'6\"", "5'7\"", "5'8\"", "5'9\"", "5'10\"", "5'11\"",
+                  "6'0\"", "6'1\"", "6'2\"", "6'3\"", "6'4\"", "6'5\"",
+                  "6'6\"", "6'7\"", "6'8\"", "6'9\"", "6'10\"", "6'11\"",
                   "7'0\"",
                 ],
-                onChanged: (value) {
-                  setState(() => height = value);
-                },
+                onChanged: (value) => setState(() => height = value),
               ),
-
               const SizedBox(height: 14),
-
               buildDropdown(
                 label: bn ? 'গায়ের রং' : 'Skin Tone',
                 icon: Icons.color_lens_outlined,
@@ -1096,20 +950,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   'Medium (শ্যামলা)',
                   'Dark (কালো)',
                 ],
-                onChanged: (value) {
-                  setState(() => skinTone = value);
-                },
+                onChanged: (value) => setState(() => skinTone = value),
               ),
-
-              // ==================================================
-              // CONTACT
-              // ==================================================
-
               sectionHeader(
                 icon: Icons.contact_mail_outlined,
                 title: bn ? 'যোগাযোগ' : 'Contact',
               ),
-
               TextFormField(
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
@@ -1124,16 +970,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   return null;
                 },
               ),
-
-              // ==================================================
-              // EDUCATION & PROFESSION
-              // ==================================================
-
               sectionHeader(
                 icon: Icons.school_outlined,
                 title: bn ? 'শিক্ষা ও পেশা' : 'Education & Profession',
               ),
-
               TextFormField(
                 controller: educationController,
                 maxLines: 2,
@@ -1143,29 +983,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   hint: bn ? 'যেমন: BSc in CSE, DU' : 'e.g. BSc in CSE, DU',
                 ),
               ),
-
               const SizedBox(height: 14),
-
               TextFormField(
                 controller: professionController,
                 maxLines: 2,
                 decoration: fieldDecoration(
                   label: bn ? 'পেশা' : 'Profession',
                   icon: Icons.work_outline,
-                  hint:
-                      bn ? 'যেমন: Software Engineer' : 'e.g. Software Engineer',
+                  hint: bn ? 'যেমন: Software Engineer' : 'e.g. Software Engineer',
                 ),
               ),
-
-              // ==================================================
-              // ABOUT ME
-              // ==================================================
-
               sectionHeader(
                 icon: Icons.edit_note_outlined,
                 title: bn ? 'আমার সম্পর্কে' : 'About Me',
               ),
-
               TextFormField(
                 controller: aboutMeController,
                 maxLines: 5,
@@ -1178,68 +1009,42 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       : 'Your personality, interests, goals...',
                 ),
               ),
-
-              // ==================================================
-              // PARTNER PREFERENCE
-              // ==================================================
-
               sectionHeader(
                 icon: Icons.favorite_outline,
                 title: bn ? 'জীবনসঙ্গীর পছন্দ' : 'Partner Preference',
               ),
-
               buildDropdown(
                 label: bn ? 'পছন্দের বয়স' : 'Preferred Age',
                 icon: Icons.cake_outlined,
                 value: preferredAge,
                 items: preferredAgeOptions,
-                onChanged: (value) {
-                  setState(() => preferredAge = value);
-                },
+                onChanged: (value) => setState(() => preferredAge = value),
               ),
-
               const SizedBox(height: 14),
-
               buildDropdown(
                 label: bn ? 'পছন্দের ধর্ম' : 'Preferred Religion',
                 icon: Icons.auto_awesome_outlined,
                 value: preferredReligion,
                 items: preferredReligionOptions,
-                onChanged: (value) {
-                  setState(() => preferredReligion = value);
-                },
+                onChanged: (value) => setState(() => preferredReligion = value),
               ),
-
               const SizedBox(height: 14),
-
               buildDropdown(
                 label: bn ? 'পছন্দের শিক্ষা' : 'Preferred Education',
                 icon: Icons.school_outlined,
                 value: preferredEducation,
                 items: preferredEducationOptions,
-                onChanged: (value) {
-                  setState(() => preferredEducation = value);
-                },
+                onChanged: (value) => setState(() => preferredEducation = value),
               ),
-
               const SizedBox(height: 14),
-
               buildDropdown(
                 label: bn ? 'পছন্দের পেশা' : 'Preferred Profession',
                 icon: Icons.work_outline,
                 value: preferredProfession,
                 items: preferredProfessionOptions,
-                onChanged: (value) {
-                  setState(() => preferredProfession = value);
-                },
+                onChanged: (value) => setState(() => preferredProfession = value),
               ),
-
-              // ==================================================
-              // SAVE BUTTON
-              // ==================================================
-
               const SizedBox(height: 30),
-
               SizedBox(
                 height: 58,
                 child: ElevatedButton(
