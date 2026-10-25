@@ -7,6 +7,9 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:flutter_callkit_incoming/entities/entities.dart'; // ✅ যোগ করা হলো
+import 'package:uuid/uuid.dart'; // ✅ যোগ করা হলো
 
 import '../firebase_options.dart';
 import '../utils/navigation_service.dart';
@@ -22,7 +25,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('🔔 [BACKGROUND] Message received: $type');
 
   if (type == 'call') {
-    await FcmService.showBackgroundCallNotification(message);
+    await FcmService.showCallKitIncoming(message);
   } else {
     await FcmService.showBackgroundGeneralNotification(message);
   }
@@ -101,8 +104,8 @@ class FcmService {
       _foregroundSub = FirebaseMessaging.onMessage.listen((message) {
         debugPrint('🔔 Foreground message: ${message.data}');
         if (message.data['type'] == 'call') {
-          // ফোরগ্রাউন্ডে কল আসলে সরাসরি কল স্ক্রিনে রিডাইরেক্ট করতে পারেন অথবা ফুল-স্ক্রিন দেখাতে পারেন
-          showBackgroundCallNotification(message);
+          // ✅ ফোরগ্রাউন্ডেও CallKit দেখান — অ্যাপ active থাকলেও একই UX
+          showCallKitIncoming(message);
         } else {
           _showForegroundGeneralNotification(message);
         }
@@ -218,59 +221,48 @@ class FcmService {
   }
 
   // ============================================================
-  // BACKGROUND CALL NOTIFICATION
+  // ✅ CALL — CallKit-এর মাধ্যমে (background + foreground)
   // ============================================================
-  static Future<void> showBackgroundCallNotification(
-      RemoteMessage message) async {
-    debugPrint('🚨 [BACKGROUND HANDLER] CALL TRIGGERED! Data: ${message.data}');
-
-    final FlutterLocalNotificationsPlugin localNotif =
-        FlutterLocalNotificationsPlugin();
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    await localNotif
-        .initialize(const InitializationSettings(android: androidInit));
-
-    final androidPlugin = localNotif.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
-    await androidPlugin?.createNotificationChannel(_callChannel);
+  // ✅ এটি flutter_callkit_incoming ব্যবহার করে — যাতে main.dart এর
+  // _setupCallKitListener() ট্রিগার হয় এবং Accept/Decline কাজ করে
+  static Future<void> showCallKitIncoming(RemoteMessage message) async {
+    debugPrint('🚨 [CALLKIT] Incoming call! Data: ${message.data}');
 
     final data = message.data;
 
     final isVideoCall =
         data['isVideoCall'] == 'true' || data['isVideoCall'] == true;
     final callerName = data['callerName'] ?? 'Someone';
+    final callId = data['callId'] ?? const Uuid().v4();
 
-    final int notifId =
-        data['callId']?.hashCode ?? DateTime.now().millisecondsSinceEpoch;
-
-    final androidDetails = AndroidNotificationDetails(
-      'call_channel_v9',
-      'Incoming Calls',
-      importance: Importance.max,
-      priority: Priority.max,
-      playSound: true,
-      sound: const RawResourceAndroidNotificationSound('ringtone'),
-      enableVibration: true,
-      category: AndroidNotificationCategory.call,
-      fullScreenIntent: true,
-      ongoing: true,
-      autoCancel: false,
-      visibility: NotificationVisibility.public,
+    final params = CallKitParams(
+      id: callId,
+      nameCaller: callerName,
+      appName: 'জীবন সাথী',
+      avatar: data['callerPhoto'],
+      type: isVideoCall ? 1 : 0, // 0 = audio, 1 = video
+      duration: 30000,
+      // ✅ extra-তে পুরো data রাখা হলো যাতে Accept করলে
+      // main.dart এর _handleCallAccept → extra['channelName'] পায়
+      extra: Map<String, dynamic>.from(data),
+      android: const AndroidParams(
+        isCustomNotification: true,
+        isShowFullLockedScreen: true,
+        ringtonePath: 'system_ringtone_default',
+        backgroundColor: '#2E2727',
+      ),
+      ios: const IOSParams(
+        supportsVideo: true,
+        audioSessionActive: true,
+      ),
     );
 
-    await localNotif.show(
-      notifId,
-      isVideoCall ? '📹 Incoming Video Call' : '📞 Incoming Call',
-      isVideoCall
-          ? '$callerName is video calling you...'
-          : '$callerName is calling you...',
-      NotificationDetails(android: androidDetails),
-      payload: jsonEncode(data),
-    );
+    await FlutterCallkitIncoming.showCallkitIncoming(params);
+    debugPrint('✅ CallKit shown for callId: $callId');
   }
 
   // ============================================================
-  // TOKEN MANAGEMENT (Updated with arrayUnion)
+  // TOKEN MANAGEMENT (arrayUnion)
   // ============================================================
   static Future<void> _saveTokenToFirestore(String token) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
