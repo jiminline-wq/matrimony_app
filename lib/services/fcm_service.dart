@@ -4,15 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../firebase_options.dart';
 import '../utils/navigation_service.dart';
-import '../screens/call_screen.dart';
 
 // ============================================================
-// ✅ FCM BACKGROUND HANDLER (অ্যাপ কিল থাকলে বা ব্যাকগ্রাউন্ডে রান হবে)
+// ✅ FCM BACKGROUND HANDLER
 // ============================================================
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -40,7 +40,6 @@ class FcmService {
   static StreamSubscription<RemoteMessage>? _foregroundSub;
   static StreamSubscription<RemoteMessage>? _openedAppSub;
 
-  // ✅ কল চ্যানেল (v9) - কাস্টম রিংটোন (ভয়েস ও ভিডিও উভয় কলের জন্য)
   static const _callChannel = AndroidNotificationChannel(
     'call_channel_v9',
     'Incoming Calls',
@@ -50,7 +49,6 @@ class FcmService {
     enableVibration: true,
   );
 
-  // ✅ সাধারণ নোটিফিকেশন চ্যানেল (v5) - চ্যাট, ম্যাচ
   static const _generalChannel = AndroidNotificationChannel(
     'general_channel_v5',
     'General Notifications',
@@ -62,7 +60,8 @@ class FcmService {
   // INITIALIZE
   // ============================================================
   static Future<void> initialize() async {
-    if (_initialized) return;
+    if (_initialized || kIsWeb)
+      return; // ওয়েবে FCM লোকাল নোটিফিকেশন এড়ানোর জন্য
     _initialized = true;
 
     try {
@@ -78,7 +77,6 @@ class FcmService {
           if (response.payload != null) {
             final data = jsonDecode(response.payload!);
 
-            // ✅ নোটিফিকেশনে ট্যাপ করলেই রিংটোন ও নোটিফিকেশন ক্যানসেল হবে
             if (data['callId'] != null) {
               cancelCallNotification(data['callId'].hashCode);
             }
@@ -100,19 +98,16 @@ class FcmService {
       if (token != null) await _saveTokenToFirestore(token);
       _messaging.onTokenRefresh.listen(_saveTokenToFirestore);
 
-      // ✅ অ্যাপ ফোরগ্রাউন্ডে (সরাসরি চালু) থাকলে
       _foregroundSub = FirebaseMessaging.onMessage.listen((message) {
         debugPrint('🔔 Foreground message: ${message.data}');
         if (message.data['type'] == 'call') {
-          NavigationService.handleNotificationTap(
-            Map<String, dynamic>.from(message.data),
-          );
+          // ফোরগ্রাউন্ডে কল আসলে সরাসরি কল স্ক্রিনে রিডাইরেক্ট করতে পারেন অথবা ফুল-স্ক্রিন দেখাতে পারেন
+          showBackgroundCallNotification(message);
         } else {
           _showForegroundGeneralNotification(message);
         }
       });
 
-      // ✅ ব্যাকগ্রাউন্ড থেকে নোটিফিকেশনে ক্লিক করলে
       _openedAppSub = FirebaseMessaging.onMessageOpenedApp.listen((message) {
         debugPrint('🔔 Message opened app: ${message.data}');
         final data = message.data;
@@ -125,7 +120,6 @@ class FcmService {
         );
       });
 
-      // ✅ অ্যাপ কিল (Killed) থাকা অবস্থায় নোটিফিকেশন থেকে ওপেন করলে
       final initialMessage = await _messaging.getInitialMessage();
       if (initialMessage != null) {
         debugPrint('🔔 Initial message: ${initialMessage.data}');
@@ -144,7 +138,7 @@ class FcmService {
   }
 
   // ============================================================
-  // ✅ SPECIFIC NOTIFICATION CANCELLATION (রিংটোন বন্ধ করার জন্য)
+  // CANCELLATION
   // ============================================================
   static Future<void> cancelCallNotification(int notificationId) async {
     try {
@@ -160,7 +154,7 @@ class FcmService {
   }
 
   // ============================================================
-  // ✅ FOREGROUND GENERAL NOTIFICATION (চ্যাট/ম্যাচ)
+  // FOREGROUND GENERAL NOTIFICATION
   // ============================================================
   static Future<void> _showForegroundGeneralNotification(
       RemoteMessage message) async {
@@ -187,7 +181,7 @@ class FcmService {
   }
 
   // ============================================================
-  // ✅ BACKGROUND GENERAL NOTIFICATION (চ্যাট/ম্যাচ)
+  // BACKGROUND GENERAL NOTIFICATION
   // ============================================================
   static Future<void> showBackgroundGeneralNotification(
       RemoteMessage message) async {
@@ -224,7 +218,7 @@ class FcmService {
   }
 
   // ============================================================
-  // ✅ BACKGROUND CALL NOTIFICATION (ভয়েস ও ভিডিও কল উভয়ের জন্য ফুল-স্ক্রিন ও রিংটোন)
+  // BACKGROUND CALL NOTIFICATION
   // ============================================================
   static Future<void> showBackgroundCallNotification(
       RemoteMessage message) async {
@@ -242,12 +236,10 @@ class FcmService {
 
     final data = message.data;
 
-    // ✅ ভিডিও কল নাকি ভয়েস কল তা চেক করা হচ্ছে ('true' অথবা true হতে পারে)
     final isVideoCall =
         data['isVideoCall'] == 'true' || data['isVideoCall'] == true;
     final callerName = data['callerName'] ?? 'Someone';
 
-    // ইউনিক নোটিফিকেশন আইডি (কল আইডি থেকে জেনারেট করা)
     final int notifId =
         data['callId']?.hashCode ?? DateTime.now().millisecondsSinceEpoch;
 
@@ -278,13 +270,13 @@ class FcmService {
   }
 
   // ============================================================
-  // TOKEN MANAGEMENT
+  // TOKEN MANAGEMENT (Updated with arrayUnion)
   // ============================================================
   static Future<void> _saveTokenToFirestore(String token) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
     await _firestore.collection('users').doc(uid).set({
-      'fcmTokens': [token]
+      'fcmTokens': FieldValue.arrayUnion([token])
     }, SetOptions(merge: true));
     debugPrint('✅ Token saved to Firestore successfully!');
   }
@@ -292,9 +284,11 @@ class FcmService {
   static Future<void> removeToken() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
-    await _firestore
-        .collection('users')
-        .doc(uid)
-        .set({'fcmTokens': FieldValue.delete()}, SetOptions(merge: true));
+    final token = await _messaging.getToken();
+    if (token != null) {
+      await _firestore.collection('users').doc(uid).set({
+        'fcmTokens': FieldValue.arrayRemove([token])
+      }, SetOptions(merge: true));
+    }
   }
 }
