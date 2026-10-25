@@ -50,6 +50,9 @@ class _MyProfileTabState extends State<MyProfileTab> {
   int _currentPhotoIndex = 0;
   bool _isBoosting = false;
 
+  // ✅ ওয়েবের জন্য PageController
+  final PageController _headerPageController = PageController();
+
   Map<String, dynamic>? _profileData;
 
   @override
@@ -59,6 +62,12 @@ class _MyProfileTabState extends State<MyProfileTab> {
     loadViewerCount();
     loadLikeCount();
     loadShortlistCount();
+  }
+
+  @override
+  void dispose() {
+    if (kIsWeb) _headerPageController.dispose();
+    super.dispose();
   }
 
   // ✅ DEFERRED NAVIGATION HELPER
@@ -591,6 +600,7 @@ class _MyProfileTabState extends State<MyProfileTab> {
           children: [
             if (profile!.photoUrls.isNotEmpty)
               PageView.builder(
+                controller: _headerPageController,
                 itemCount: profile!.photoUrls.length,
                 onPageChanged: (index) =>
                     setState(() => _currentPhotoIndex = index),
@@ -612,6 +622,43 @@ class _MyProfileTabState extends State<MyProfileTab> {
                   child: const Center(
                       child:
                           Icon(Icons.person, size: 120, color: primaryMaroon))),
+
+            // ✅ শুধু ওয়েব: ছবির বাম/ডানে ট্যাপ করে ছবি বদলানোর জোন
+            if (kIsWeb && profile!.photoUrls.length > 1)
+              Positioned.fill(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          if (_currentPhotoIndex > 0) {
+                            _headerPageController.previousPage(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOut,
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          if (_currentPhotoIndex <
+                              profile!.photoUrls.length - 1) {
+                            _headerPageController.nextPage(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOut,
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             Positioned.fill(
               child: IgnorePointer(
                 child: Container(
@@ -630,6 +677,8 @@ class _MyProfileTabState extends State<MyProfileTab> {
                 ),
               ),
             ),
+
+            // ✅ ইন্ডিকেটর বার
             if (profile!.photoUrls.length > 1)
               Positioned(
                 top: 12,
@@ -639,66 +688,94 @@ class _MyProfileTabState extends State<MyProfileTab> {
                   children: List.generate(
                     profile!.photoUrls.length,
                     (index) => Expanded(
-                      child: Container(
-                        height: 3,
-                        margin: const EdgeInsets.symmetric(horizontal: 2),
-                        decoration: BoxDecoration(
-                            color: index == _currentPhotoIndex
-                                ? Colors.white
-                                : Colors.white.withValues(alpha: 0.4),
-                            borderRadius: BorderRadius.circular(2)),
-                      ),
+                      child: kIsWeb
+                          ? GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () {
+                                _headerPageController.animateToPage(
+                                  index,
+                                  duration: const Duration(milliseconds: 250),
+                                  curve: Curves.easeOut,
+                                );
+                              },
+                              child: Container(
+                                height: 3,
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 2),
+                                decoration: BoxDecoration(
+                                    color: index == _currentPhotoIndex
+                                        ? Colors.white
+                                        : Colors.white.withValues(alpha: 0.4),
+                                    borderRadius: BorderRadius.circular(2)),
+                              ),
+                            )
+                          : Container(
+                              height: 3,
+                              margin: const EdgeInsets.symmetric(horizontal: 2),
+                              decoration: BoxDecoration(
+                                  color: index == _currentPhotoIndex
+                                      ? Colors.white
+                                      : Colors.white.withValues(alpha: 0.4),
+                                  borderRadius: BorderRadius.circular(2)),
+                            ),
                     ),
                   ),
                 ),
               ),
+
             if (profile!.photoUrls.length > 1)
               Positioned(
                 top: 24,
                 right: 12,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12)),
-                  child: Text(
-                      '${_currentPhotoIndex + 1} / ${profile!.photoUrls.length}',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold)),
-                ),
-              ),
-            if (isBoostActive)
-              Positioned(
-                top: 12,
-                left: 12,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                        colors: [primaryGold, primaryMaroon]),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                          color: primaryMaroon.withValues(alpha: 0.4),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3))
-                    ],
-                  ),
-                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.bolt, color: Colors.white, size: 14),
-                    SizedBox(width: 4),
-                    Text('Boosted',
-                        style: TextStyle(
+                child: IgnorePointer(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12)),
+                    child: Text(
+                        '${_currentPhotoIndex + 1} / ${profile!.photoUrls.length}',
+                        style: const TextStyle(
                             color: Colors.white,
                             fontSize: 11,
-                            fontWeight: FontWeight.bold))
-                  ]),
+                            fontWeight: FontWeight.bold)),
+                  ),
                 ),
               ),
+
+            if (isBoostActive)
+              Positioned(
+                top: kIsWeb ? 50 : 12,
+                left: 12,
+                child: IgnorePointer(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [primaryGold, primaryMaroon]),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                            color: primaryMaroon.withValues(alpha: 0.4),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3))
+                      ],
+                    ),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.bolt, color: Colors.white, size: 14),
+                      SizedBox(width: 4),
+                      Text('Boosted',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold))
+                    ]),
+                  ),
+                ),
+              ),
+
             Positioned(
               left: 20,
               right: 20,
