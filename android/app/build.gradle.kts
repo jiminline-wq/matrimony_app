@@ -29,6 +29,16 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+            // ✅ ProGuard সক্রিয় করা হলো — CallKit ও Agora-র ক্লাস রাখতে
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        debug {
+            // Debug build-এ ProGuard বন্ধ থাকবে যাতে বিল্ড দ্রুত হয়
             isMinifyEnabled = false
             isShrinkResources = false
         }
