@@ -22,15 +22,16 @@ firebase.initializeApp(firebaseConfig);
 // Messaging সার্ভিস ওয়ার্কার ইনিশিয়ালাইজ করুন
 const messaging = firebase.messaging();
 
-// ব্যাকগ্রাউন্ড নোটিফিকেশন হ্যান্ডলার (ঐচ্ছিক কিন্তু সুপারিশকৃত)
-messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  // এখানে আপনি নোটিফিকেশন কাস্টমাইজ করতে পারেন
-  const notificationTitle = payload.notification.title;
-  const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/icons/Icon-192.png' // আপনার অ্যাপের আইকনের পাথ
-  };
+self.addEventListener('install', () => { self.skipWaiting(); });
+self.addEventListener('activate', (event) => { event.waitUntil(self.clients.claim()); });
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+messaging.onBackgroundMessage((payload) => {
+  const title = payload.data?.title || 'New Notification';
+  const body = payload.data?.body || '';
+  return self.registration.showNotification(title, {
+    body: body,
+    icon: '/icons/Icon-192.png',
+    badge: '/icons/Icon-192.png',
+    data: payload.data,
+  });
 });
