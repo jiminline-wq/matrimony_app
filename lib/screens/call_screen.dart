@@ -4,6 +4,7 @@ import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart'; // ✅ FIX: import যোগ
 import 'package:permission_handler/permission_handler.dart';
 
 import '../theme/colors.dart';
@@ -137,7 +138,13 @@ class _CallScreenState extends State<CallScreen> {
 
     debugPrint('📞 Incoming call — waiting for accept');
     _listenToCallStatus();
-    RingService.start();
+
+    // ✅ FIX: callId থাকলে CallKit ইতিমধ্যেই নেটিভ রিংটোন বাজাচ্ছে।
+    // তাই RingService আর চালাবো না (ডাবল রিং এড়াতে)।
+    // শুধু callId না থাকলে (fallback) RingService চালাবো।
+    if (_callId == null) {
+      RingService.start();
+    }
 
     _ringTimeout = Timer(_ringDuration, () async {
       if (mounted && _isIncomingRinging && !_callEnded) {
@@ -392,6 +399,15 @@ class _CallScreenState extends State<CallScreen> {
     RingService.stopRingback();
     _ringTimeout?.cancel();
 
+    // ✅ FIX: CallKit নোটিফিকেশন বন্ধ করুন (যদি থেকে থাকে)
+    if (_callId != null) {
+      try {
+        await FlutterCallkitIncoming.endCall(_callId!);
+      } catch (e) {
+        debugPrint('⚠️ CallKit endCall (end) error: $e');
+      }
+    }
+
     if (_callId != null && !_callEnded) {
       _callEnded = true;
       final myUid = FirebaseAuth.instance.currentUser?.uid;
@@ -458,6 +474,13 @@ class _CallScreenState extends State<CallScreen> {
 
     if (_callId == null) return;
 
+    // ✅ FIX: CallKit নোটিফিকেশন ও তার নেটিভ রিংটোন বন্ধ করুন
+    try {
+      await FlutterCallkitIncoming.endCall(_callId!);
+    } catch (e) {
+      debugPrint('⚠️ CallKit endCall (accept) error: $e');
+    }
+
     // ✅ Local state আগে আপডেট করুন যাতে UI সাথে সাথে স্যুইচ হয়
     setState(() => _isIncomingRinging = false);
 
@@ -470,6 +493,13 @@ class _CallScreenState extends State<CallScreen> {
     _ringTimeout?.cancel();
 
     if (_callId != null) {
+      // ✅ FIX: CallKit নোটিফিকেশন বন্ধ করুন
+      try {
+        await FlutterCallkitIncoming.endCall(_callId!);
+      } catch (e) {
+        debugPrint('⚠️ CallKit endCall (reject) error: $e');
+      }
+
       await CallService.rejectCall(_callId!);
     }
     _callEnded = true;

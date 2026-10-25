@@ -413,6 +413,17 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
       return;
     }
 
+    // ✅ FIX (ধাপ ৪): আগের CallKit নোটিফিকেশন বন্ধ করুন (যদি থেকে থাকে)
+    // ইউজার CallKit নোটিফিকেশনের body-তে ট্যাপ করে অ্যাপে ঢুকলে,
+    // CallKit-এর নোটিফিকেশন ও তার নেটিভ রিংটোন এখনো সক্রিয় থাকতে পারে।
+    // সেটি বন্ধ না করলে CallScreen খোলার পরও রিং চলতে থাকবে।
+    final callId = data['callId'] as String?;
+    if (callId != null) {
+      FlutterCallkitIncoming.endCall(callId).catchError((e) {
+        debugPrint('⚠️ CallKit endCall (pending) error: $e');
+      });
+    }
+
     debugPrint('📞 Opening CallScreen from pending notification');
 
     nav.push(
