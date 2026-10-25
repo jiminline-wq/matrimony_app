@@ -26,36 +26,25 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
-        <!-- ✅ রিংটোন বাজানোর জন্য জরুরি -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
-    
-    <!-- ✅ অ্যাপ ব্যাকগ্রাউন্ডে থাকলে রিংটোন বাজানোর জন্য -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
-    
-    
 
     <!-- ✅ Location Permissions -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
     <!-- ============================================================ -->
-    <!-- ✅ CALL-SPECIFIC PERMISSIONS (NEW)                           -->
+    <!-- ✅ CALL-SPECIFIC PERMISSIONS                                 -->
     <!-- ============================================================ -->
-    <!-- Android 14+ — Full-screen intent for incoming call UI on lockscreen -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
-
-    <!-- Android 14+ — Foreground service for phone calls -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
-
-    <!-- Android 10+ — Self-managed calls -->
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS"/>
-
-    <!-- Android 14+ — Foreground service for data sync (Agora uses this) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
-
-    <!-- Android 13+ — Show notifications while locked -->
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD"/>
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- ✅ Flutter CallKit Incoming — Custom Permission -->
+    <permission android:name="${applicationId}.PERMISSION_CALL" android:protectionLevel="signature" />
+    <uses-permission android:name="${applicationId}.PERMISSION_CALL" />
 
     <application
         tools:replace="android:label"
@@ -86,6 +75,39 @@
             </intent-filter>
         </activity>
 
+        <!-- ============================================================ -->
+        <!-- ✅ FLUTTER CALLKIT INCOMING — Activity                        -->
+        <!-- ============================================================ -->
+        <!-- Background বা killed অবস্থায় lock screen-এ কল দেখানোর জন্য -->
+        <activity
+            android:name="com.hiennv.flutter_callkit_incoming.CallkitIncomingActivity"
+            android:taskAffinity="com.hiennv.flutter_callkit_incoming.INCOMING_CALL_AFFINITY"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:turnScreenOn="true"
+            android:showWhenLocked="true"
+            android:exported="true"
+            android:permission="${applicationId}.PERMISSION_CALL" />
+
+        <!-- ============================================================ -->
+        <!-- ✅ FLUTTER CALLKIT INCOMING — Broadcast Receiver              -->
+        <!-- ============================================================ -->
+        <!-- Accept / Decline / End / Mute ইত্যাদি বাটনের action ধরে -->
+        <receiver
+            android:name="com.hiennv.flutter_callkit_incoming.CallkitIncomingBroadcastReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.hiennv.flutter_callkit_incoming.ACTION_CALL_ACCEPT" />
+                <action android:name="com.hiennv.flutter_callkit_incoming.ACTION_CALL_DECLINE" />
+                <action android:name="com.hiennv.flutter_callkit_incoming.ACTION_CALL_END" />
+                <action android:name="com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_HOLD" />
+                <action android:name="com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_MUTE" />
+                <action android:name="com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_CAMERA" />
+                <action android:name="com.hiennv.flutter_callkit_incoming.ACTION_CALL_TOGGLE_SPEAKER" />
+            </intent-filter>
+        </receiver>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
@@ -100,21 +122,18 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@mipmap/ic_launcher" />
-            <!-- ✅ AdMob App ID (TEST — production-এ real দেবেন) -->
-            <!-- ✅ AdMob App ID (TEST — production-এ real দেবেন) -->
+
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-3940256099942544~3347511713"/>
-        
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@android:color/holo_red_dark" />
 
         <!-- ============================================================ -->
-        <!-- ✅ AGORA FOREGROUND SERVICE (NEW)                            -->
+        <!-- ✅ AGORA FOREGROUND SERVICE                                  -->
         <!-- ============================================================ -->
-        <!-- Call-এর সময় app background-এ গেলে audio/video চালু রাখে -->
         <service
             android:name="io.agora.rtc2.RtcService"
             android:enabled="true"
