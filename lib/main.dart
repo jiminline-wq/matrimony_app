@@ -23,69 +23,121 @@ import 'ads/ad_manager.dart';
 import 'services/story_service.dart';
 
 // ============================================================
-// MAIN
+// MAIN — 🚀 "Load First" Strategy
 // ============================================================
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ১. Firebase init
+  // ============================================================
+  // STEP 1: শুধু Firebase init করুন (দ্রুততম, 필수)
+  // ============================================================
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // ২. Notification permission
-  await FirebaseMessaging.instance.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
-
-  // ৩. FCM SETUP
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  await FcmService.initialize();
-
-  // ৪. Full-Screen Intent Permission
-  await _requestFullScreenIntentPermission();
-
-  // ৪.১ Battery Optimization
-  await _requestBatteryOptimizationExemption();
-
-  // ৫. Analytics
-  await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
-
-  // ৬. UMP consent
-  await _initUmpConsent();
-
-  // ৭. AdMob
-  await AdManager.initialize();
-
-  // ৮. Stale Calls Cleanup
-  try {
-    final cleaned = await CallService.cleanupStaleCalls();
-    if (cleaned > 0) {
-      debugPrint('🧹 Cleaned up $cleaned stale calls at startup');
-    }
-  } catch (e) {
-    debugPrint('⚠️ cleanupStaleCalls failed: $e');
-  }
-
-  // ৯. Expired Stories Cleanup
-  try {
-    final stories = await StoryService.cleanupExpired();
-    if (stories > 0) {
-      debugPrint('🧹 Cleaned $stories expired stories');
-    }
-  } catch (e) {
-    debugPrint('⚠️ Story cleanup failed: $e');
-  }
-
+  // ============================================================
+  // STEP 2: সাথে সাথে UI দেখান! (আগে এখানেই আটকে থাকত)
+  // ============================================================
   runApp(const JibonSathiApp());
+
+  // ============================================================
+  // STEP 3: বাকি সব background-এ চালান (UI ব্লক করবে না)
+  // ============================================================
+  _runBackgroundInit();
 }
 
 // ============================================================
-// FULL-SCREEN INTENT PERMISSION
+// BACKGROUND INITIALIZATION — UI চলার সময় চলবে
+// ============================================================
+Future<void> _runBackgroundInit() async {
+  // ১. Analytics (web-এ কাজ করে)
+  try {
+    await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
+  } catch (e) {
+    debugPrint('⚠️ Analytics init failed: $e');
+  }
+
+  // ২. FCM (web + mobile দুটোতেই কাজ করে)
+  try {
+    if (kIsWeb) {
+      // Web FCM
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      await FcmService.initialize();
+    } else {
+      // Mobile FCM
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      await FcmService.initialize();
+    }
+  } catch (e) {
+    debugPrint('⚠️ FCM init failed: $e');
+  }
+
+  // ৩. Native-only কাজ — শুধু mobile-এ (web-এ skip)
+  if (!kIsWeb) {
+    try {
+      await _requestFullScreenIntentPermission();
+    } catch (e) {
+      debugPrint('⚠️ CallKit permission failed: $e');
+    }
+
+    try {
+      await _requestBatteryOptimizationExemption();
+    } catch (e) {
+      debugPrint('⚠️ Battery optimization failed: $e');
+    }
+
+    try {
+      await _initUmpConsent();
+    } catch (e) {
+      debugPrint('⚠️ UMP consent failed: $e');
+    }
+
+    try {
+      await AdManager.initialize();
+    } catch (e) {
+      debugPrint('⚠️ AdMob init failed: $e');
+    }
+  }
+
+  // ৪. Stale calls cleanup — ৫ সেকেন্ড পরে (UI সম্পূর্ণ লোড হওয়ার পর)
+  Future.delayed(const Duration(seconds: 5), () async {
+    try {
+      final cleaned = await CallService.cleanupStaleCalls();
+      if (cleaned > 0) {
+        debugPrint('🧹 Cleaned up $cleaned stale calls');
+      }
+    } catch (e) {
+      debugPrint('⚠️ cleanupStaleCalls failed: $e');
+    }
+  });
+
+  // ৫. Expired stories cleanup — ৮ সেকেন্ড পরে
+  Future.delayed(const Duration(seconds: 8), () async {
+    try {
+      final stories = await StoryService.cleanupExpired();
+      if (stories > 0) {
+        debugPrint('🧹 Cleaned $stories expired stories');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Story cleanup failed: $e');
+    }
+  });
+}
+
+// ============================================================
+// FULL-SCREEN INTENT PERMISSION (শুধু mobile)
 // ============================================================
 Future<void> _requestFullScreenIntentPermission() async {
+  if (kIsWeb) return;
   try {
     final canUse = await FlutterCallkitIncoming.canUseFullScreenIntent();
     if (!canUse) {
@@ -100,7 +152,7 @@ Future<void> _requestFullScreenIntentPermission() async {
 }
 
 // ============================================================
-// BATTERY OPTIMIZATION EXEMPTION
+// BATTERY OPTIMIZATION EXEMPTION (শুধু mobile)
 // ============================================================
 Future<void> _requestBatteryOptimizationExemption() async {
   if (kIsWeb) return;
@@ -119,9 +171,10 @@ Future<void> _requestBatteryOptimizationExemption() async {
 }
 
 // ============================================================
-// UMP CONSENT
+// UMP CONSENT (শুধু mobile)
 // ============================================================
 Future<void> _initUmpConsent() async {
+  if (kIsWeb) return;
   if (!AdConfig.enableUmpConsent) return;
 
   try {
@@ -173,12 +226,15 @@ class JibonSathiApp extends StatefulWidget {
 class _JibonSathiAppState extends State<JibonSathiApp> {
   bool _pendingProcessed = false;
   StreamSubscription<CallEvent?>? _callKitSubscription;
-  String? _lastAcceptedCallId; // ✅ ডুপ্লিকেট Accept ঠেকাতে
+  String? _lastAcceptedCallId;
 
   @override
   void initState() {
     super.initState();
-    _setupCallKitListener();
+    // ✅ Web-এ CallKit listener বন্ধ (MissingPluginException এড়াতে)
+    if (!kIsWeb) {
+      _setupCallKitListener();
+    }
     _schedulePendingNotification();
   }
 
@@ -189,9 +245,10 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
   }
 
   // ============================================================
-  // CALLKIT EVENT LISTENER
+  // CALLKIT EVENT LISTENER (শুধু mobile)
   // ============================================================
   void _setupCallKitListener() {
+    if (kIsWeb) return;
     _callKitSubscription = FlutterCallkitIncoming.onEvent.listen((event) {
       if (event == null) return;
 
@@ -211,7 +268,7 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
   }
 
   // ============================================================
-  // ACCEPT — Firestore আপডেট করে তারপর CallScreen খুলুন
+  // ACCEPT
   // ============================================================
   Future<void> _handleCallAccept(dynamic body) async {
     try {
@@ -229,15 +286,12 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
         return;
       }
 
-      // ✅ ডুপ্লিকেট accept ঠেকান
       if (_lastAcceptedCallId == callId) {
         debugPrint('⚠️ Duplicate accept ignored for call: $callId');
         return;
       }
       _lastAcceptedCallId = callId;
 
-      // ✅ প্রথমে Firestore-এ status 'accepted' করুন
-      // এতে CallScreen খোলার সময় status দেখে আর Receive button দেখাবে না
       try {
         await FirebaseFirestore.instance
             .collection('calls')
@@ -252,7 +306,6 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
         debugPrint('⚠️ Could not update call status to accepted: $e');
       }
 
-      // ✅ Navigator ready কিনা চেক করুন
       final nav = NavigationService.navigatorKey.currentState;
       if (nav == null) {
         debugPrint('❌ Navigator not ready for accepted call');
@@ -261,7 +314,6 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
 
       debugPrint('📞 Opening CallScreen (isIncoming: false)');
 
-      // ✅ isIncoming: false — কারণ ইউজার ইতিমধ্যেই Accept করেছে
       nav.push(
         MaterialPageRoute(
           builder: (_) => CallScreen(
@@ -272,7 +324,7 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
             isVideoCall: extra['isVideoCall'] == 'true',
             isCaller: false,
             callId: callId,
-            isIncoming: false, // ✅ এটাই মূল ফিক্স
+            isIncoming: false,
           ),
         ),
       );
@@ -281,9 +333,6 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
     }
   }
 
-  // ============================================================
-  // DECLINE
-  // ============================================================
   Future<void> _handleCallDecline(dynamic body) async {
     try {
       final extra = _extractExtra(body);
@@ -306,9 +355,6 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
     }
   }
 
-  // ============================================================
-  // CALL END
-  // ============================================================
   Future<void> _handleCallEnd(dynamic body) async {
     try {
       final extra = _extractExtra(body);
@@ -332,9 +378,6 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
     }
   }
 
-  // ============================================================
-  // TIMEOUT
-  // ============================================================
   Future<void> _handleCallTimeout(dynamic body) async {
     try {
       final extra = _extractExtra(body);
@@ -357,9 +400,6 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
     }
   }
 
-  // ============================================================
-  // EXTRACT EXTRA
-  // ============================================================
   Map<String, dynamic>? _extractExtra(dynamic body) {
     if (body == null) return null;
     if (body is! Map) return null;
@@ -414,11 +454,8 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
     }
 
     // ✅ FIX (ধাপ ৪): আগের CallKit নোটিফিকেশন বন্ধ করুন (যদি থেকে থাকে)
-    // ইউজার CallKit নোটিফিকেশনের body-তে ট্যাপ করে অ্যাপে ঢুকলে,
-    // CallKit-এর নোটিফিকেশন ও তার নেটিভ রিংটোন এখনো সক্রিয় থাকতে পারে।
-    // সেটি বন্ধ না করলে CallScreen খোলার পরও রিং চলতে থাকবে।
     final callId = data['callId'] as String?;
-    if (callId != null) {
+    if (callId != null && !kIsWeb) {
       FlutterCallkitIncoming.endCall(callId).catchError((e) {
         debugPrint('⚠️ CallKit endCall (pending) error: $e');
       });
@@ -436,7 +473,7 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
           isVideoCall: data['isVideoCall'] == 'true',
           isCaller: false,
           callId: data['callId'],
-          isIncoming: true, // pending notification থেকে এলে receive দেখাবে
+          isIncoming: true,
         ),
       ),
     );
