@@ -1,13 +1,17 @@
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { logger } = require("firebase-functions");
-const admin = require("firebase-admin");
 
-admin.initializeApp();
+// ✅ Modular imports (v13+ recommended)
+const { initializeApp } = require("firebase-admin/app");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { getMessaging } = require("firebase-admin/messaging");
+
+initializeApp();
 setGlobalOptions({ region: "asia-south1", maxInstances: 10 });
 
-const db = admin.firestore();
-const messaging = admin.messaging();
+const db = getFirestore();
+const messaging = getMessaging();
 
 // ============================================================
 // HELPER: User এর সব FCM token পান
@@ -29,7 +33,7 @@ async function cleanupInvalidTokens(uid, invalidTokens) {
   if (invalidTokens.length === 0) return;
   try {
     await db.collection("users").doc(uid).update({
-      fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+      fcmTokens: FieldValue.arrayRemove(...invalidTokens),
     });
   } catch (e) {
     logger.error("Cleanup failed:", e);
@@ -55,13 +59,11 @@ async function sendPushNotification(uid, title, body, data = {}) {
     android: {
       priority: "high",
       ttl: 60000,
-      // ❌ এখানে কোনো notification ব্লক নেই। এটি Data-Only।
     },
     apns: {
       headers: { "apns-priority": "10", "apns-push-type": "background" },
       payload: { aps: { "content-available": 1 } },
     },
-    // ✅ WEB PUSH — Service Worker-এ data পৌঁছাবে
     webpush: {
       headers: { Urgency: "high" },
       data: {
@@ -82,7 +84,6 @@ async function sendPushNotification(uid, title, body, data = {}) {
       `Push: ${response.successCount}/${tokens.length} delivered to ${uid}`
     );
 
-    // ✅ Invalid token cleanup
     if (response.failureCount > 0) {
       const invalidTokens = [];
       response.responses.forEach((resp, idx) => {
@@ -123,7 +124,7 @@ async function createNotification(userId, notifData) {
         fromPhotoUrl: notifData.fromPhotoUrl || "",
         data: notifData.data || {},
         isRead: false,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
       });
     logger.info(`Notification doc created for ${userId}`);
   } catch (e) {
@@ -277,7 +278,6 @@ exports.onCallCreated = onDocumentCreated(
       const tokens = await getUserTokens(receiverId);
       if (tokens.length === 0) return;
 
-      // ✅ Data-only message. High priority for Android.
       const message = {
         tokens: tokens,
         data: {
@@ -290,9 +290,8 @@ exports.onCallCreated = onDocumentCreated(
           isVideoCall: isVideoCall ? "true" : "false",
         },
         android: {
-          priority: "high", // ✅ HIGH PRIORITY MUST
-          ttl: 60000, // ✅ 60 seconds timeout
-          // ❌ NO notification block here (Data-only)
+          priority: "high",
+          ttl: 60000,
         },
         apns: {
           headers: {
@@ -303,7 +302,6 @@ exports.onCallCreated = onDocumentCreated(
             aps: { "content-available": 1 },
           },
         },
-        // ✅ WEB PUSH — Service Worker এ কল ডেটা পৌঁছাবে
         webpush: {
           headers: { Urgency: "high" },
           data: {
@@ -326,7 +324,6 @@ exports.onCallCreated = onDocumentCreated(
         `📞 Call FCM: ${response.successCount}/${tokens.length} to ${receiverId}`
       );
 
-      // ✅ Invalid token cleanup
       if (response.failureCount > 0) {
         const invalidTokens = [];
         response.responses.forEach((resp, idx) => {
@@ -370,7 +367,6 @@ exports.onCallStatusChanged = onDocumentUpdated(
     const callerId = after.callerId;
     const receiverName = after.receiverName || "User";
 
-    // শুধু এই status-এ caller-কে notify করবো
     const notifyStatuses = ["accepted", "rejected", "ended", "missed"];
     if (!notifyStatuses.includes(status)) return;
 

@@ -46,7 +46,7 @@ class FcmService {
   // ✅ Web VAPID key — Firebase Console → Cloud Messaging → Web Push certificates
   // এই key টি অবশ্যই বসাতে হবে, নাহলে Web-এ FCM token পাওয়া যাবে না
   static const String _webVapidKey =
-      'BDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+      'BCGSo29u9C9M6SjWrOtV1MY7kinETf7HyrwJV6IewVyCdUwwRZyazICTGoMqwZ8fLjgmG1HVQKErM14jOEA0_4s';
 
   static const _callChannel = AndroidNotificationChannel(
     'call_channel_v9',
