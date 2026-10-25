@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb; // ✅ kIsWeb এর জন্য
 import 'package:matrimony_app/widgets/app_network_image.dart';
 
 import '../theme/colors.dart';
@@ -37,6 +38,9 @@ class _UserProfileViewScreenState extends State<UserProfileViewScreen> {
   bool _isLiking = false;
   int _currentPhotoIndex = 0;
 
+  // ✅ ওয়েবের জন্য PageController
+  final PageController _headerPageController = PageController();
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +48,12 @@ class _UserProfileViewScreenState extends State<UserProfileViewScreen> {
     _checkBlockedStatus();
     _checkSavedStatus();
     _checkLikeStatus();
+  }
+
+  @override
+  void dispose() {
+    if (kIsWeb) _headerPageController.dispose();
+    super.dispose();
   }
 
   Future<void> _recordView() async {
@@ -677,32 +687,89 @@ class _UserProfileViewScreenState extends State<UserProfileViewScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // ✅ ১. মোবাইলের জন্য পুরনো কোড (ছবি ট্যাপ = ফুলস্ক্রিন)
+            // ✅ ২. ওয়েবের জন্য নতুন কোড (PageController দিয়ে স্লাইড)
             if (user.photoUrls.isNotEmpty)
-              GestureDetector(
-                onTap: () => _openFullscreenPhoto(_currentPhotoIndex),
-                child: PageView.builder(
-                  itemCount: user.photoUrls.length,
-                  onPageChanged: (index) =>
-                      setState(() => _currentPhotoIndex = index),
-                  itemBuilder: (context, index) {
-                    return AppNetworkImage(
-                      user.photoUrls[index],
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                          color: lightMaroon,
-                          child: const Center(
-                              child: Icon(Icons.person,
-                                  size: 120, color: primaryMaroon))),
-                    );
-                  },
-                ),
-              )
+              kIsWeb
+                  ? PageView.builder(
+                      controller: _headerPageController,
+                      itemCount: user.photoUrls.length,
+                      onPageChanged: (index) =>
+                          setState(() => _currentPhotoIndex = index),
+                      itemBuilder: (context, index) {
+                        return AppNetworkImage(
+                          user.photoUrls[index],
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                              color: lightMaroon,
+                              child: const Center(
+                                  child: Icon(Icons.person,
+                                      size: 120, color: primaryMaroon))),
+                        );
+                      },
+                    )
+                  : GestureDetector(
+                      onTap: () => _openFullscreenPhoto(_currentPhotoIndex),
+                      child: PageView.builder(
+                        itemCount: user.photoUrls.length,
+                        onPageChanged: (index) =>
+                            setState(() => _currentPhotoIndex = index),
+                        itemBuilder: (context, index) {
+                          return AppNetworkImage(
+                            user.photoUrls[index],
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                                color: lightMaroon,
+                                child: const Center(
+                                    child: Icon(Icons.person,
+                                        size: 120, color: primaryMaroon))),
+                          );
+                        },
+                      ),
+                    )
             else
               Container(
                   color: lightMaroon,
                   child: const Center(
                       child:
                           Icon(Icons.person, size: 120, color: primaryMaroon))),
+
+            // ✅ ৩. শুধু ওয়েব: ছবির বাম/ডানে ট্যাপ করে ছবি বদলানোর জোন
+            if (kIsWeb && user.photoUrls.length > 1)
+              Positioned.fill(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          if (_currentPhotoIndex > 0) {
+                            _headerPageController.previousPage(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOut,
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          if (_currentPhotoIndex < user.photoUrls.length - 1) {
+                            _headerPageController.nextPage(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOut,
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // গ্রেডিয়েন্ট ওভারলে
             Positioned.fill(
               child: IgnorePointer(
                 child: Container(
@@ -721,6 +788,8 @@ class _UserProfileViewScreenState extends State<UserProfileViewScreen> {
                 ),
               ),
             ),
+
+            // ✅ ৪. ইন্ডিকেটর বার
             if (user.photoUrls.length > 1)
               Positioned(
                 top: 12,
@@ -730,70 +799,121 @@ class _UserProfileViewScreenState extends State<UserProfileViewScreen> {
                   children: List.generate(
                     user.photoUrls.length,
                     (index) => Expanded(
-                      child: Container(
-                        height: 3,
-                        margin: const EdgeInsets.symmetric(horizontal: 2),
-                        decoration: BoxDecoration(
-                          color: index == _currentPhotoIndex
-                              ? Colors.white
-                              : Colors.white.withValues(alpha: 0.4),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
+                      child: kIsWeb
+                          ? GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () {
+                                _headerPageController.animateToPage(
+                                  index,
+                                  duration: const Duration(milliseconds: 250),
+                                  curve: Curves.easeOut,
+                                );
+                              },
+                              child: Container(
+                                height: 3,
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 2),
+                                decoration: BoxDecoration(
+                                  color: index == _currentPhotoIndex
+                                      ? Colors.white
+                                      : Colors.white.withValues(alpha: 0.4),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            )
+                          : Container(
+                              height: 3,
+                              margin: const EdgeInsets.symmetric(horizontal: 2),
+                              decoration: BoxDecoration(
+                                color: index == _currentPhotoIndex
+                                    ? Colors.white
+                                    : Colors.white.withValues(alpha: 0.4),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
                     ),
                   ),
                 ),
               ),
+
+            // ছবি সংখ্যা (2/5)
             if (user.photoUrls.length > 1)
               Positioned(
                 top: 24,
                 right: 12,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12)),
-                  child: Text(
-                      '${_currentPhotoIndex + 1} / ${user.photoUrls.length}',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold)),
+                child: IgnorePointer(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12)),
+                    child: Text(
+                        '${_currentPhotoIndex + 1} / ${user.photoUrls.length}',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold)),
+                  ),
                 ),
               ),
+
+            // ✅ ৫. শুধু ওয়েব: ফুলস্ক্রিন বাটন
+            if (kIsWeb && user.photoUrls.isNotEmpty)
+              Positioned(
+                bottom: 160, // নাম/বয়সের টেক্সটের উপরে
+                right: 20,
+                child: GestureDetector(
+                  onTap: () => _openFullscreenPhoto(_currentPhotoIndex),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.fullscreen,
+                        color: Colors.white, size: 24),
+                  ),
+                ),
+              ),
+
+            // Boosted ব্যাজ (আগের মতোই)
             if (BoostService.isBoostActive(user.boostedUntil))
               Positioned(
-                top: 12,
+                top: kIsWeb ? 50 : 12,
                 left: 12,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                        colors: [primaryGold, primaryMaroon]),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                          color: primaryMaroon.withValues(alpha: 0.4),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3))
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.bolt, color: Colors.white, size: 14),
-                      SizedBox(width: 4),
-                      Text('Boosted',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold)),
-                    ],
+                child: IgnorePointer(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [primaryGold, primaryMaroon]),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                            color: primaryMaroon.withValues(alpha: 0.4),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3))
+                      ],
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.bolt, color: Colors.white, size: 14),
+                        SizedBox(width: 4),
+                        Text('Boosted',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
                   ),
                 ),
               ),
+
+            // নাম, বয়স, জেলা, বৈবাহিক অবস্থা (আগের মতোই অক্ষত)
             Positioned(
               left: 20,
               right: 20,
