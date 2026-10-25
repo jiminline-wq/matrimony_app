@@ -598,6 +598,7 @@ class _MyProfileTabState extends State<MyProfileTab> {
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // ১. মূল PageView (সোয়াইপ কাজ করবে)
             if (profile!.photoUrls.isNotEmpty)
               PageView.builder(
                 controller: _headerPageController,
@@ -623,42 +624,42 @@ class _MyProfileTabState extends State<MyProfileTab> {
                       child:
                           Icon(Icons.person, size: 120, color: primaryMaroon))),
 
-            // ✅ শুধু ওয়েব: ছবির বাম/ডানে ট্যাপ করে ছবি বদলানোর জোন
+            // ✅ ২. শুধু ওয়েব: ছবির বাম/ডানে ট্যাপ করে ছবি বদলানোর জোন
+            // translucent ব্যবহার করা হয়েছে যাতে PageView এর swipe-ও কাজ করে
             if (kIsWeb && profile!.photoUrls.length > 1)
               Positioned.fill(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {
-                          if (_currentPhotoIndex > 0) {
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTapUp: (details) {
+                        if (!_headerPageController.hasClients) return;
+                        final currentPage =
+                            (_headerPageController.page ?? 0).round();
+                        final isLeft =
+                            details.localPosition.dx < constraints.maxWidth / 2;
+                        if (isLeft) {
+                          if (currentPage > 0) {
                             _headerPageController.previousPage(
                               duration: const Duration(milliseconds: 250),
                               curve: Curves.easeOut,
                             );
                           }
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {
-                          if (_currentPhotoIndex <
-                              profile!.photoUrls.length - 1) {
+                        } else {
+                          if (currentPage < profile!.photoUrls.length - 1) {
                             _headerPageController.nextPage(
                               duration: const Duration(milliseconds: 250),
                               curve: Curves.easeOut,
                             );
                           }
-                        },
-                      ),
-                    ),
-                  ],
+                        }
+                      },
+                    );
+                  },
                 ),
               ),
 
+            // ৩. গ্রেডিয়েন্ট ওভারলে
             Positioned.fill(
               child: IgnorePointer(
                 child: Container(
@@ -678,7 +679,7 @@ class _MyProfileTabState extends State<MyProfileTab> {
               ),
             ),
 
-            // ✅ ইন্ডিকেটর বার
+            // ৪. ইন্ডিকেটর বার
             if (profile!.photoUrls.length > 1)
               Positioned(
                 top: 12,
@@ -723,6 +724,7 @@ class _MyProfileTabState extends State<MyProfileTab> {
                 ),
               ),
 
+            // ৫. ছবি সংখ্যা (2/5)
             if (profile!.photoUrls.length > 1)
               Positioned(
                 top: 24,
@@ -744,6 +746,7 @@ class _MyProfileTabState extends State<MyProfileTab> {
                 ),
               ),
 
+            // ৬. Boosted ব্যাজ
             if (isBoostActive)
               Positioned(
                 top: kIsWeb ? 50 : 12,
@@ -776,6 +779,7 @@ class _MyProfileTabState extends State<MyProfileTab> {
                 ),
               ),
 
+            // ৭. নাম, বয়স, বাটন ইত্যাদি
             Positioned(
               left: 20,
               right: 20,
@@ -963,7 +967,6 @@ class _MyProfileTabState extends State<MyProfileTab> {
       ),
     );
   }
-
   // ============================================================
   // REUSABLE WIDGETS
   // ============================================================
