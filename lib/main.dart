@@ -1,13 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show kIsWeb; // ✅ Battery optimization-এর জন্য
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ যোগ করা হলো
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_callkit_incoming/entities/call_event.dart';
+import 'package:permission_handler/permission_handler.dart'; // ✅ Battery optimization-এর জন্য
 
 import 'firebase_options.dart';
 import 'theme/colors.dart';
@@ -47,6 +50,9 @@ Future<void> main() async {
 
   // ৪. ✅ Android 14+ Full-Screen Intent Permission (CallKit-এর জন্য জরুরি)
   await _requestFullScreenIntentPermission();
+
+  // ৪.১ ✅ Battery Optimization Ignore (Doze mode এড়াতে)
+  await _requestBatteryOptimizationExemption();
 
   // ৫. Analytics enable
   await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
@@ -98,6 +104,25 @@ Future<void> _requestFullScreenIntentPermission() async {
     }
   } catch (e) {
     debugPrint('⚠️ Full-screen intent permission error: $e');
+  }
+}
+
+// ============================================================
+// ✅ BATTERY OPTIMIZATION EXEMPTION (Doze mode এড়াতে)
+// ============================================================
+Future<void> _requestBatteryOptimizationExemption() async {
+  if (kIsWeb) return; // ওয়েবে প্রয়োজন নেই
+
+  try {
+    final status = await Permission.ignoreBatteryOptimizations.status;
+    if (status.isGranted) {
+      debugPrint('✅ Battery optimization already ignored');
+      return;
+    }
+    final result = await Permission.ignoreBatteryOptimizations.request();
+    debugPrint('🔋 Battery optimization request result: $result');
+  } catch (e) {
+    debugPrint('⚠️ Battery optimization request failed: $e');
   }
 }
 
@@ -232,7 +257,6 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
       final extra = _extractExtra(body);
       final callId = extra?['callId'];
       if (callId != null) {
-        // ✅ সরাসরি Firestore-এ call status আপডেট
         FirebaseFirestore.instance.collection('calls').doc(callId).update({
           'status': 'declined',
           'endedAt': FieldValue.serverTimestamp(),
@@ -271,7 +295,6 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
       final extra = _extractExtra(body);
       final callId = extra?['callId'];
       if (callId != null) {
-        // ✅ সরাসরি Firestore-এ call status আপডেট
         FirebaseFirestore.instance.collection('calls').doc(callId).update({
           'status': 'missed',
           'endedAt': FieldValue.serverTimestamp(),
