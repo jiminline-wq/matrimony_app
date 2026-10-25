@@ -562,6 +562,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
     try {
       await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        // ✅ FIX: gender ও religion যোগ করা হলো (বাকি সব অপরিবর্তিত)
+        'gender': widget.gender,
+        'religion': widget.religion,
         'age': ageController.text.trim(),
         'district': district ?? '',
         'maritalStatus': maritalStatus ?? '',
