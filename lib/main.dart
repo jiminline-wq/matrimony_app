@@ -1,8 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'
-    show kIsWeb; // ✅ Battery optimization-এর জন্য
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,7 +9,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_callkit_incoming/entities/call_event.dart';
-import 'package:permission_handler/permission_handler.dart'; // ✅ Battery optimization-এর জন্য
+import 'package:permission_handler/permission_handler.dart';
 
 import 'firebase_options.dart';
 import 'theme/colors.dart';
@@ -22,9 +21,6 @@ import 'utils/navigation_service.dart';
 import 'ads/ad_config.dart';
 import 'ads/ad_manager.dart';
 import 'services/story_service.dart';
-
-// ⚠️ Migration চালানোর সময় নিচের import টা uncomment করবেন
-// import 'utils/district_migration.dart';
 
 // ============================================================
 // MAIN
@@ -44,28 +40,26 @@ Future<void> main() async {
     sound: true,
   );
 
-  // ৩. ✅ FCM SETUP (অবশ্যই runApp এর আগে থাকতে হবে)
+  // ৩. FCM SETUP
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await FcmService.initialize();
 
-  // ৪. ✅ Android 14+ Full-Screen Intent Permission (CallKit-এর জন্য জরুরি)
+  // ৪. Full-Screen Intent Permission
   await _requestFullScreenIntentPermission();
 
-  // ৪.১ ✅ Battery Optimization Ignore (Doze mode এড়াতে)
+  // ৪.১ Battery Optimization
   await _requestBatteryOptimizationExemption();
 
-  // ৫. Analytics enable
+  // ৫. Analytics
   await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
 
-  // ৬. UMP consent — AdMob init-এর আগে (EU/GDPR compliance)
+  // ৬. UMP consent
   await _initUmpConsent();
 
-  // ৭. AdMob initialize (consent-এর পরে)
+  // ৭. AdMob
   await AdManager.initialize();
 
-  // ============================================================
-  // ৮. STALE CALL CLEANUP
-  // ============================================================
+  // ৮. Stale Calls Cleanup
   try {
     final cleaned = await CallService.cleanupStaleCalls();
     if (cleaned > 0) {
@@ -75,9 +69,7 @@ Future<void> main() async {
     debugPrint('⚠️ cleanupStaleCalls failed: $e');
   }
 
-  // ============================================================
-  // ৯. EXPIRED STORIES CLEANUP
-  // ============================================================
+  // ৯. Expired Stories Cleanup
   try {
     final stories = await StoryService.cleanupExpired();
     if (stories > 0) {
@@ -91,7 +83,7 @@ Future<void> main() async {
 }
 
 // ============================================================
-// ✅ CALLKIT FULL-SCREEN INTENT PERMISSION (Android 14+)
+// FULL-SCREEN INTENT PERMISSION
 // ============================================================
 Future<void> _requestFullScreenIntentPermission() async {
   try {
@@ -108,10 +100,10 @@ Future<void> _requestFullScreenIntentPermission() async {
 }
 
 // ============================================================
-// ✅ BATTERY OPTIMIZATION EXEMPTION (Doze mode এড়াতে)
+// BATTERY OPTIMIZATION EXEMPTION
 // ============================================================
 Future<void> _requestBatteryOptimizationExemption() async {
-  if (kIsWeb) return; // ওয়েবে প্রয়োজন নেই
+  if (kIsWeb) return;
 
   try {
     final status = await Permission.ignoreBatteryOptimizations.status;
@@ -127,7 +119,7 @@ Future<void> _requestBatteryOptimizationExemption() async {
 }
 
 // ============================================================
-// UMP CONSENT — EU / GDPR
+// UMP CONSENT
 // ============================================================
 Future<void> _initUmpConsent() async {
   if (!AdConfig.enableUmpConsent) return;
@@ -159,7 +151,6 @@ Future<void> _initUmpConsent() async {
       },
     );
 
-    // ⏱️ 10s timeout — user form ignore করলে hang করবে না
     await completer.future.timeout(
       const Duration(seconds: 10),
       onTimeout: () => debugPrint('⚠️ UMP consent timeout — continuing'),
@@ -182,6 +173,7 @@ class JibonSathiApp extends StatefulWidget {
 class _JibonSathiAppState extends State<JibonSathiApp> {
   bool _pendingProcessed = false;
   StreamSubscription<CallEvent?>? _callKitSubscription;
+  String? _lastAcceptedCallId; // ✅ ডুপ্লিকেট Accept ঠেকাতে
 
   @override
   void initState() {
@@ -197,7 +189,7 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
   }
 
   // ============================================================
-  // ✅ CALLKIT EVENT LISTENER
+  // CALLKIT EVENT LISTENER
   // ============================================================
   void _setupCallKitListener() {
     _callKitSubscription = FlutterCallkitIncoming.onEvent.listen((event) {
@@ -218,31 +210,69 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
     });
   }
 
-  // Accept বাটন চাপলে — CallScreen খুলে Agora channel-এ join হবে
-  void _handleCallAccept(dynamic body) {
+  // ============================================================
+  // ACCEPT — Firestore আপডেট করে তারপর CallScreen খুলুন
+  // ============================================================
+  Future<void> _handleCallAccept(dynamic body) async {
     try {
       final extra = _extractExtra(body);
-      if (extra == null) return;
+      if (extra == null) {
+        debugPrint('❌ Call accepted but extra is null');
+        return;
+      }
 
+      final callId = extra['callId'] as String?;
+      final channelName = extra['channelName'] as String?;
+
+      if (callId == null || channelName == null) {
+        debugPrint('❌ Call accepted but callId/channelName missing');
+        return;
+      }
+
+      // ✅ ডুপ্লিকেট accept ঠেকান
+      if (_lastAcceptedCallId == callId) {
+        debugPrint('⚠️ Duplicate accept ignored for call: $callId');
+        return;
+      }
+      _lastAcceptedCallId = callId;
+
+      // ✅ প্রথমে Firestore-এ status 'accepted' করুন
+      // এতে CallScreen খোলার সময় status দেখে আর Receive button দেখাবে না
+      try {
+        await FirebaseFirestore.instance
+            .collection('calls')
+            .doc(callId)
+            .update({
+          'status': 'accepted',
+          'answeredAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        debugPrint('✅ Firestore updated: call $callId accepted');
+      } catch (e) {
+        debugPrint('⚠️ Could not update call status to accepted: $e');
+      }
+
+      // ✅ Navigator ready কিনা চেক করুন
       final nav = NavigationService.navigatorKey.currentState;
       if (nav == null) {
         debugPrint('❌ Navigator not ready for accepted call');
         return;
       }
 
-      debugPrint('📞 Call accepted, opening CallScreen');
+      debugPrint('📞 Opening CallScreen (isIncoming: false)');
 
+      // ✅ isIncoming: false — কারণ ইউজার ইতিমধ্যেই Accept করেছে
       nav.push(
         MaterialPageRoute(
           builder: (_) => CallScreen(
             isBangla: true,
-            channelName: extra['channelName'] ?? '',
+            channelName: channelName,
             otherUserName: extra['callerName'] ?? 'Unknown',
             otherUserPhoto: extra['callerPhoto'] ?? '',
             isVideoCall: extra['isVideoCall'] == 'true',
             isCaller: false,
-            callId: extra['callId'],
-            isIncoming: true,
+            callId: callId,
+            isIncoming: false, // ✅ এটাই মূল ফিক্স
           ),
         ),
       );
@@ -251,15 +281,21 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
     }
   }
 
-  // Decline বাটন চাপলে — call বাতিল হিসেবে mark করুন
-  void _handleCallDecline(dynamic body) {
+  // ============================================================
+  // DECLINE
+  // ============================================================
+  Future<void> _handleCallDecline(dynamic body) async {
     try {
       final extra = _extractExtra(body);
       final callId = extra?['callId'];
       if (callId != null) {
-        FirebaseFirestore.instance.collection('calls').doc(callId).update({
+        await FirebaseFirestore.instance
+            .collection('calls')
+            .doc(callId)
+            .update({
           'status': 'declined',
           'endedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
         }).catchError((e) {
           debugPrint('⚠️ Could not update call as declined: $e');
         });
@@ -270,34 +306,47 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
     }
   }
 
-  // ✅ Call শেষ হলে — Firestore-এ status আপডেট
-  void _handleCallEnd(dynamic body) {
+  // ============================================================
+  // CALL END
+  // ============================================================
+  Future<void> _handleCallEnd(dynamic body) async {
     try {
       final extra = _extractExtra(body);
       final callId = extra?['callId'];
       if (callId != null) {
-        FirebaseFirestore.instance.collection('calls').doc(callId).update({
+        await FirebaseFirestore.instance
+            .collection('calls')
+            .doc(callId)
+            .update({
           'status': 'ended',
           'endedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
         }).catchError((e) {
           debugPrint('⚠️ Could not update call as ended: $e');
         });
         debugPrint('📞 Call ended via CallKit: $callId');
+        _lastAcceptedCallId = null;
       }
     } catch (e) {
       debugPrint('❌ _handleCallEnd error: $e');
     }
   }
 
-  // Timeout হলে (কেউ receive না করলে)
-  void _handleCallTimeout(dynamic body) {
+  // ============================================================
+  // TIMEOUT
+  // ============================================================
+  Future<void> _handleCallTimeout(dynamic body) async {
     try {
       final extra = _extractExtra(body);
       final callId = extra?['callId'];
       if (callId != null) {
-        FirebaseFirestore.instance.collection('calls').doc(callId).update({
+        await FirebaseFirestore.instance
+            .collection('calls')
+            .doc(callId)
+            .update({
           'status': 'missed',
           'endedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
         }).catchError((e) {
           debugPrint('⚠️ Could not update call as missed: $e');
         });
@@ -308,7 +357,9 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
     }
   }
 
-  // ✅ body থেকে extra বের করার helper
+  // ============================================================
+  // EXTRACT EXTRA
+  // ============================================================
   Map<String, dynamic>? _extractExtra(dynamic body) {
     if (body == null) return null;
     if (body is! Map) return null;
@@ -325,10 +376,9 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
   }
 
   // ============================================================
-  // PENDING NOTIFICATION (robust)
+  // PENDING NOTIFICATION
   // ============================================================
   Future<void> _schedulePendingNotification() async {
-    // 1) Wait for Navigator to be attached (max 8s)
     final start = DateTime.now();
     while (NavigationService.navigatorKey.currentState == null) {
       if (DateTime.now().difference(start).inSeconds > 8) {
@@ -338,7 +388,6 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
       await Future.delayed(const Duration(milliseconds: 150));
     }
 
-    // 2) Give splash a natural moment
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted || _pendingProcessed) return;
@@ -376,7 +425,7 @@ class _JibonSathiAppState extends State<JibonSathiApp> {
           isVideoCall: data['isVideoCall'] == 'true',
           isCaller: false,
           callId: data['callId'],
-          isIncoming: true,
+          isIncoming: true, // pending notification থেকে এলে receive দেখাবে
         ),
       ),
     );

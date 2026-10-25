@@ -75,27 +75,83 @@ class _CallScreenState extends State<CallScreen> {
     _registerCallbacks();
 
     if (widget.isIncoming) {
-      debugPrint('📞 Incoming call — waiting for accept');
-      _listenToCallStatus();
-      RingService.start();
-
-      _ringTimeout = Timer(_ringDuration, () async {
-        if (mounted && _isIncomingRinging && !_callEnded) {
-          debugPrint('⏰ Ring timeout — marking as missed');
-          _callEnded = true;
-
-          if (_callId != null) {
-            await CallService.missedCall(_callId!);
-          }
-
-          RingService.stop();
-          if (mounted) Navigator.pop(context);
-        }
-      });
+      // ✅ FIX: CallKit থেকে আগেই accept হয়েছিল কিনা যাচাই করুন
+      _checkIfAlreadyAccepted();
     } else {
       _startCall();
       _listenToCallStatus();
     }
+  }
+
+  // ============================================================
+  // ✅ FIX: Firestore স্ট্যাটাস চেক করে যদি 'accepted' হয় তাহলে
+  //          incoming UI স্কিপ করে সরাসরি কল জয়েন করুন
+  // ============================================================
+  Future<void> _checkIfAlreadyAccepted() async {
+    if (_callId == null) {
+      _showIncomingUI();
+      return;
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('calls')
+          .doc(_callId)
+          .get();
+      final status = doc.data()?['status'] as String?;
+
+      debugPrint('🔍 Call status on open: $status');
+
+      if (status == CallService.statusAccepted) {
+        // ✅ ইউজার ইতিমধ্যেই CallKit থেকে accept করেছে
+        debugPrint('✅ Call already accepted — skipping incoming UI');
+        if (mounted) {
+          setState(() => _isIncomingRinging = false);
+        }
+        _listenToCallStatus();
+        _startCall();
+        return;
+      }
+
+      if (status == CallService.statusRejected ||
+          status == CallService.statusCancelled ||
+          status == CallService.statusEnded ||
+          status == CallService.statusMissed) {
+        // ✅ কল ইতিমধ্যেই শেষ হয়ে গেছে
+        debugPrint('⚠️ Call already ended/cancelled ($status)');
+        if (mounted) {
+          Navigator.pop(context);
+        }
+        return;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Could not check call status: $e');
+    }
+
+    // স্ট্যাটাস এখনো ringing — সাধারণ incoming UI দেখান
+    _showIncomingUI();
+  }
+
+  void _showIncomingUI() {
+    if (!mounted) return;
+
+    debugPrint('📞 Incoming call — waiting for accept');
+    _listenToCallStatus();
+    RingService.start();
+
+    _ringTimeout = Timer(_ringDuration, () async {
+      if (mounted && _isIncomingRinging && !_callEnded) {
+        debugPrint('⏰ Ring timeout — marking as missed');
+        _callEnded = true;
+
+        if (_callId != null) {
+          await CallService.missedCall(_callId!);
+        }
+
+        RingService.stop();
+        if (mounted) Navigator.pop(context);
+      }
+    });
   }
 
   void _registerCallbacks() {
@@ -105,6 +161,7 @@ class _CallScreenState extends State<CallScreen> {
       _hasJoined = true;
       _callStartTime = DateTime.now();
 
+      // ✅ ভিডিও/ভয়েস অনুযায়ী অডিও রাউট সেট
       AgoraService.setAudioRoute(widget.isVideoCall);
 
       setState(() {
@@ -149,9 +206,13 @@ class _CallScreenState extends State<CallScreen> {
           RingService.stopRingback();
           _ringTimeout?.cancel();
 
+          // ✅ Incoming UI থেকে non-incoming এ স্যুইচ
+          if (_isIncomingRinging) {
+            setState(() => _isIncomingRinging = false);
+          }
+
           if (!_hasJoined && !_isStartingJoin) {
             _isStartingJoin = true;
-            setState(() => _isIncomingRinging = false);
             _startCall();
           }
           break;
@@ -164,10 +225,7 @@ class _CallScreenState extends State<CallScreen> {
 
           await _logCallMessageHelper(data, 'rejected');
 
-          if (!widget.isIncoming && mounted && !_callEnded) {
-            _callEnded = true;
-            _showAndPop(widget.isBangla ? 'কল বাতিল হয়েছে' : 'Call declined');
-          } else if (widget.isIncoming && mounted && !_callEnded) {
+          if (mounted && !_callEnded) {
             _callEnded = true;
             _showAndPop(widget.isBangla ? 'কল বাতিল হয়েছে' : 'Call cancelled');
           }
@@ -399,6 +457,10 @@ class _CallScreenState extends State<CallScreen> {
     _ringTimeout?.cancel();
 
     if (_callId == null) return;
+
+    // ✅ Local state আগে আপডেট করুন যাতে UI সাথে সাথে স্যুইচ হয়
+    setState(() => _isIncomingRinging = false);
+
     await CallService.acceptCall(_callId!);
   }
 
