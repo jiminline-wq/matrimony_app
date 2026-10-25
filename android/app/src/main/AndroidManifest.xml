@@ -44,7 +44,7 @@
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD"/>
 
     <!-- ✅ Flutter CallKit Incoming — Custom Permission -->
-    <permission android:name="${applicationId}.PERMISSION_CALL" android:protectionLevel="signature" />
+  
     <uses-permission android:name="${applicationId}.PERMISSION_CALL" />
 
     <application
