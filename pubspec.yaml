@@ -50,6 +50,12 @@ dependencies:
   agora_rtc_engine: ^6.5.2
   flutter_ringtone_player: ^4.0.0
 
+  # ✅ NEW: Background Call UI (Android full-screen & iOS CallKit)
+  flutter_callkit_incoming: ^2.5.0
+  
+  # ✅ NEW: Unique call ID generator
+  uuid: ^4.5.1
+
   # Notifications
   flutter_local_notifications: ^19.0.0
 
