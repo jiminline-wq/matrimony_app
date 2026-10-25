@@ -425,18 +425,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                                   ),
                                 ),
                               ),
+                              // ✅ এখানে ব্যানারটি যুক্ত করা হলো
+                              const SizedBox(height: 40),
+                              const AppDownloadBanner(),
                             ],
                           ),
                         ],
                       ),
                     ),
-                  ),
-
-                  // ✅ ৩. ওয়েবসাইটের জন্য নিচে ডাউনলোড ব্যানার বসানো হলো
-                  const Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: AppDownloadBanner(),
                   ),
                 ],
               ),
