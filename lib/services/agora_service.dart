@@ -84,14 +84,35 @@ class AgoraService {
     // Event handlers
     _engine!.registerEventHandler(
       RtcEngineEventHandler(
-        onJoinChannelSuccess: (connection, elapsed) {
+        // ✅ FIX: join সফল হওয়ার পর স্পিকার চালু করা
+        onJoinChannelSuccess: (connection, elapsed) async {
           debugPrint('✅ Joined channel: ${connection.channelId}');
           onJoined?.call(connection.channelId ?? '');
+
+          // ৩০০ms ডিলে দিয়ে স্পিকার চালু করা হচ্ছে
+          await Future.delayed(const Duration(milliseconds: 300));
+          try {
+            await _engine?.setEnableSpeakerphone(true);
+            debugPrint('🔊 Speakerphone enabled after join');
+          } catch (e) {
+            debugPrint('⚠️ Speakerphone enable failed: $e');
+          }
         },
-        onUserJoined: (connection, remoteUid, elapsed) {
+
+        // ✅ FIX: রিমোট ইউজার join হলে আবার স্পিকার নিশ্চিত করা
+        onUserJoined: (connection, remoteUid, elapsed) async {
           debugPrint('✅ Remote user joined: $remoteUid');
           onUserJoined?.call(remoteUid);
+
+          await Future.delayed(const Duration(milliseconds: 200));
+          try {
+            await _engine?.setEnableSpeakerphone(true);
+            debugPrint('🔊 Speakerphone re-enabled after remote join');
+          } catch (e) {
+            debugPrint('⚠️ Speakerphone re-enable failed: $e');
+          }
         },
+
         onUserOffline: (connection, remoteUid, reason) {
           debugPrint('⚠️ Remote user left: $remoteUid (reason: $reason)');
           onUserOffline?.call(remoteUid);
@@ -131,29 +152,20 @@ class AgoraService {
 
     // ============================================================
     // ✅ SAMSUNG AUDIO FIXES
-    // প্রতিটা call আলাদা try/catch-এ — কোনোটা fail হলেও বাকিগুলো চলবে
     // ============================================================
 
-    // 1. Audio profile
+    // 1. Audio profile (ভয়েসের কোয়ালিটি ভালো করার জন্য default ব্যবহার)
     try {
       await _engine!.setAudioProfile(
-        profile: AudioProfileType.audioProfileSpeechStandard,
+        profile: AudioProfileType.audioProfileDefault,
         scenario: AudioScenarioType.audioScenarioChatroom,
       );
-      debugPrint('🔊 Audio profile set');
+      debugPrint('🔊 Audio profile set to Default');
     } catch (e) {
       debugPrint('⚠️ setAudioProfile skipped: $e');
     }
 
-    // 2. Default route
-    try {
-      await _engine!.setDefaultAudioRouteToSpeakerphone(true);
-      debugPrint('🔊 Default route: speakerphone');
-    } catch (e) {
-      debugPrint('⚠️ setDefaultAudioRoute skipped: $e');
-    }
-
-    // 3. Volume
+    // 2. Volume
     try {
       await _engine!.adjustPlaybackSignalVolume(100);
       await _engine!.adjustRecordingSignalVolume(100);
@@ -162,7 +174,8 @@ class AgoraService {
       debugPrint('⚠️ Volume adjust skipped: $e');
     }
 
-    // ⚠️ setEnableSpeakerphone এখানে call করা হয়নি — join-এর পরে হবে
+    // ⚠️ setDefaultAudioRouteToSpeakerphone এখানে call করা হয়নি
+    // কারণ join-এর আগে এটি call করলে কাজ করে না।
   }
 
   // ============================================================
@@ -208,7 +221,6 @@ class AgoraService {
 
       _currentChannel = channelName;
 
-      // ✅ Join সফল — speaker set করা হবে CallScreen-এর onJoined callback-এ
       debugPrint('✅ Join channel success: $channelName');
       return true;
     } catch (e) {
