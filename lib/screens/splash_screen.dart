@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/colors.dart';
 import 'home_screen.dart';
 import 'welcome_screen.dart';
+import '../widgets/app_download_banner.dart'; // ✅ ১. ব্যানার ইমপোর্ট করা হলো
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -93,66 +94,80 @@ class _SplashScreenState extends State<SplashScreen>
           ),
         ),
         child: SafeArea(
-          child: Center(
-            child: FadeTransition(
-              opacity: fadeAnimation,
-              child: ScaleTransition(
-                scale: scaleAnimation,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: primaryGold.withValues(alpha: .20),
-                            blurRadius: 40,
-                            spreadRadius: 8,
+          // ✅ ২. Stack ব্যবহার করা হলো যাতে ব্যানারটি নিচে ফিক্সড থাকে
+          child: Stack(
+            children: [
+              // আপনার বর্তমান সেন্টার ডিজাইন
+              Center(
+                child: FadeTransition(
+                  opacity: fadeAnimation,
+                  child: ScaleTransition(
+                    scale: scaleAnimation,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: primaryGold.withValues(alpha: .20),
+                                blurRadius: 40,
+                                spreadRadius: 8,
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      child: Image.asset(
-                        'assets/logo.png',
-                        width: 160,
-                        height: 160,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-                    const Text(
-                      'জীবন সাথী',
-                      style: TextStyle(
-                        fontSize: 38,
-                        fontWeight: FontWeight.w800,
-                        color: mainText,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'আমার শূন্যতা কাটুক তোমার আগমনে',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: secondaryText,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 50),
-                    const SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 3,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          primaryMaroon,
+                          child: Image.asset(
+                            'assets/logo.png',
+                            width: 160,
+                            height: 160,
+                            fit: BoxFit.contain,
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 28),
+                        const Text(
+                          'জীবন সাথী',
+                          style: TextStyle(
+                            fontSize: 38,
+                            fontWeight: FontWeight.w800,
+                            color: mainText,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'আমার শূন্যতা কাটুক তোমার আগমনে',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: secondaryText,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 50),
+                        const SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              primaryMaroon,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+
+              // ✅ ৩. ওয়েবসাইটের জন্য নিচে ডাউনলোড ব্যানার বসানো হলো
+              const Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: AppDownloadBanner(),
+              ),
+            ],
           ),
         ),
       ),
