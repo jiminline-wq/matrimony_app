@@ -435,7 +435,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   // ✅ ৩. ওয়েবসাইটের জন্য নিচে ডাউনলোড ব্যানার বসানো হলো
                   const Positioned(
                     bottom: 0,
-                    left: 0,
                     right: 0,
                     child: AppDownloadBanner(),
                   ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
+import '../theme/colors.dart';
 
 class AppDownloadBanner extends StatelessWidget {
   const AppDownloadBanner({super.key});
@@ -8,8 +9,7 @@ class AppDownloadBanner extends StatelessWidget {
   // 📌 এখানে আপনার অ্যাপের আসল লিংক বসাবেন
   final String playStoreUrl =
       "https://play.google.com/store/apps/details?id=com.example.matrimony_app";
-  final String appStoreUrl =
-      "https://apps.apple.com/app/idYOUR_APP_ID"; // iOS অ্যাপ পাবলিশ হলে এই লিংক দিন
+  final String appStoreUrl = "https://apps.apple.com/app/idYOUR_APP_ID";
 
   Future<void> _launchUrl(String urlString) async {
     final Uri url = Uri.parse(urlString);
@@ -20,81 +20,69 @@ class AppDownloadBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ শুধুমাত্র ওয়েবসাইটে দেখাবে, মোবাইল অ্যাপে দেখাবে না
     if (!kIsWeb) return const SizedBox.shrink();
 
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      margin: const EdgeInsets.all(20), // চারপাশে সুন্দর মার্জিন
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF800020), Color(0xFF4A0012)], // আপনার মেরুন কালার
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border:
+            Border.all(color: primaryGold.withValues(alpha: 0.4), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
+            color: primaryMaroon.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
         ],
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // মোবাইলে ওয়েবসাইট দেখলে যাতে ভেঙে না যায়, তাই রেস্পন্সিভ ডিজাইন
-          bool isSmallScreen = constraints.maxWidth < 600;
-
-          return Flex(
-            direction: isSmallScreen ? Axis.vertical : Axis.horizontal,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: isSmallScreen
-                ? CrossAxisAlignment.start
-                : CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
             children: [
-              // টেক্সট পার্ট
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'জীবন সাথী অ্যাপ ডাউনলোড করুন',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'ফাস্ট ও স্মুথ এক্সপেরিয়েন্সের জন্য অ্যাপটি ডাউনলোড করুন।',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-              ),
-
-              SizedBox(height: isSmallScreen ? 12 : 0),
-
-              // বাটন পার্ট
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _buildButton(
-                    icon: Icons.android,
-                    label: 'Android',
-                    onTap: () => _launchUrl(playStoreUrl),
-                  ),
-                  _buildButton(
-                    icon: Icons.apple,
-                    label: 'iOS',
-                    onTap: () => _launchUrl(appStoreUrl),
-                  ),
-                ],
+              Icon(Icons.download_for_offline_outlined,
+                  color: primaryMaroon, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                'ডাউনলোড করুন',
+                style: TextStyle(
+                  color: primaryMaroon,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
-          );
-        },
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'ফাস্ট ও স্মুথ এক্সপেরিয়েন্সের জন্য অ্যাপটি ডাউনলোড করুন।',
+            style: TextStyle(color: Colors.black54, fontSize: 12),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildButton(
+                  icon: Icons.android,
+                  label: 'Android',
+                  onTap: () => _launchUrl(playStoreUrl),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildButton(
+                  icon: Icons.apple,
+                  label: 'iOS',
+                  onTap: () => _launchUrl(appStoreUrl),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -105,24 +93,25 @@ class AppDownloadBanner extends StatelessWidget {
       required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
+          color: const Color(0xFFFBF5E8), // হালকা গোল্ড ব্যাকগ্রাউন্ড
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: primaryGold.withValues(alpha: 0.3)),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: const Color(0xFF800020), size: 20),
-            const SizedBox(width: 8),
+            Icon(icon, color: primaryMaroon, size: 20),
+            const SizedBox(width: 6),
             Text(
               label,
-              style: const TextStyle(
-                color: Color(0xFF800020),
+              style: TextStyle(
+                color: primaryMaroon,
                 fontWeight: FontWeight.bold,
-                fontSize: 14,
+                fontSize: 13,
               ),
             ),
           ],
