@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
-import '../theme/colors.dart';
 
 class AppDownloadBanner extends StatelessWidget {
   const AppDownloadBanner({super.key});
 
-  // 📌 এখানে আপনার অ্যাপের আসল লিংক বসাবেন
   final String playStoreUrl =
       "https://play.google.com/store/apps/details?id=com.example.matrimony_app";
   final String appStoreUrl = "https://apps.apple.com/app/idYOUR_APP_ID";
@@ -22,97 +20,87 @@ class AppDownloadBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!kIsWeb) return const SizedBox.shrink();
 
-    return Container(
-      margin: const EdgeInsets.all(20), // চারপাশে সুন্দর মার্জিন
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border:
-            Border.all(color: primaryGold.withValues(alpha: 0.4), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: primaryMaroon.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
+    return Column(
+      children: [
+        const Text(
+          'অ্যাপটি ডাউনলোড করুন',
+          style: TextStyle(
+            color: Colors.grey,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.2,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.download_for_offline_outlined,
-                  color: primaryMaroon, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'ডাউনলোড করুন',
-                style: TextStyle(
-                  color: primaryMaroon,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'ফাস্ট ও স্মুথ এক্সপেরিয়েন্সের জন্য অ্যাপটি ডাউনলোড করুন।',
-            style: TextStyle(color: Colors.black54, fontSize: 12),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildButton(
-                  icon: Icons.android,
-                  label: 'Android',
-                  onTap: () => _launchUrl(playStoreUrl),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _buildButton(
-                  icon: Icons.apple,
-                  label: 'iOS',
-                  onTap: () => _launchUrl(appStoreUrl),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Google Play Store Button
+            _buildStoreButton(
+              onTap: () => _launchUrl(playStoreUrl),
+              icon: Icons.play_arrow_rounded, // Play Store-এর ত্রিভুজাকার লোগো
+              iconColor: const Color(0xFF00D2FF),
+              topText: 'GET IT ON',
+              bottomText: 'Google Play',
+            ),
+            const SizedBox(width: 15),
+            // Apple App Store Button
+            _buildStoreButton(
+              onTap: () => _launchUrl(appStoreUrl),
+              icon: Icons.apple, // Apple লোগো
+              iconColor: Colors.white,
+              topText: 'Download on the',
+              bottomText: 'App Store',
+            ),
+          ],
+        ),
+      ],
     );
   }
 
-  Widget _buildButton(
-      {required IconData icon,
-      required String label,
-      required VoidCallback onTap}) {
+  Widget _buildStoreButton({
+    required VoidCallback onTap,
+    required IconData icon,
+    required Color iconColor,
+    required String topText,
+    required String bottomText,
+  }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFFFBF5E8), // হালকা গোল্ড ব্যাকগ্রাউন্ড
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: primaryGold.withValues(alpha: 0.3)),
+          color: Colors.black, // অফিশিয়াল স্টোরের মতো কালো ব্যাকগ্রাউন্ড
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.black12),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: primaryMaroon, size: 20),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: primaryMaroon,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
+            Icon(icon, color: iconColor, size: 28),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  topText,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  bottomText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
