@@ -1,7 +1,5 @@
 // web/firebase-messaging-sw.js
 
-// আপনার Firebase প্রজেক্টের কনফিগারেশন এখানে বসান
-// Firebase Console -> Project Settings -> General -> Your apps -> Web app -> Config
 const firebaseConfig = {
   apiKey: "AIzaSyDQMN0APdqFxVmFXErqh9vEJ7g_VtBE1Jw",
   authDomain: "jibon-sathi-matrimony-2a163.firebaseapp.com",
@@ -12,26 +10,79 @@ const firebaseConfig = {
   measurementId: "G-VX57CRW9WZ"
 };
 
-// Firebase SDK ইমপোর্ট করুন (compat ভার্সন ব্যবহার করা হচ্ছে)
 importScripts('https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging-compat.js');
 
-// Firebase ইনিশিয়ালাইজ করুন
 firebase.initializeApp(firebaseConfig);
 
-// Messaging সার্ভিস ওয়ার্কার ইনিশিয়ালাইজ করুন
 const messaging = firebase.messaging();
 
+// ✅ Service Worker দ্রুত activate করতে
 self.addEventListener('install', () => { self.skipWaiting(); });
 self.addEventListener('activate', (event) => { event.waitUntil(self.clients.claim()); });
 
+// ✅ Background message handler
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.data?.title || 'New Notification';
-  const body = payload.data?.body || '';
+  console.log('[SW] Background message received:', payload);
+
+  const data = payload.data || {};
+  const type = data.type || '';
+
+  let title = 'নতুন নোটিফিকেশন';
+  let body = '';
+  let icon = '/icons/Icon-192.png';
+  let tag = 'general';
+
+  if (type === 'call') {
+    const isVideo = data.isVideoCall === 'true' || data.isVideoCall === true;
+    title = isVideo ? '📹 Incoming Video Call' : '📞 Incoming Call';
+    body = `${data.callerName || 'Someone'} is calling you...`;
+    icon = data.callerPhoto || '/icons/Icon-192.png';
+    tag = `call-${data.callId || Date.now()}`;
+  } else if (type === 'message') {
+    title = data.title || '💬 নতুন বার্তা';
+    body = data.body || '';
+    tag = `msg-${data.chatId || Date.now()}`;
+  } else {
+    title = data.title || 'নতুন নোটিফিকেশন';
+    body = data.body || '';
+  }
+
   return self.registration.showNotification(title, {
     body: body,
-    icon: '/icons/Icon-192.png',
+    icon: icon,
     badge: '/icons/Icon-192.png',
-    data: payload.data,
+    tag: tag,
+    data: data,
+    requireInteraction: type === 'call', // ✅ call হলে user dismiss করা পর্যন্ত থাকবে
+    vibrate: type === 'call' ? [500, 300, 500, 300, 500] : [200],
   });
+});
+
+// ✅ Notification click → অ্যাপ focus বা open + call হলে সরাসরি call screen
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const data = event.notification.data || {};
+  const type = data.type || '';
+
+  let url = '/';
+  if (type === 'call' && data.callId) {
+    url = `/?type=call&callId=${encodeURIComponent(data.callId)}`;
+  } else if (type === 'message' && data.chatId) {
+    url = `/?type=message&chatId=${encodeURIComponent(data.chatId)}`;
+  }
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+          client.focus();
+          client.postMessage({ type: type, data: data });
+          return;
+        }
+      }
+      return clients.openWindow(url);
+    })
+  );
 });

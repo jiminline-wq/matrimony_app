@@ -45,12 +45,12 @@ async function sendPushNotification(uid, title, body, data = {}) {
 
   const message = {
     tokens: tokens,
-    data: { 
-      ...data, 
-      title: title, 
+    data: {
+      ...data,
+      title: title,
       body: body,
       type: data.type || "general",
-      click_action: "FLUTTER_NOTIFICATION_CLICK" 
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
     },
     android: {
       priority: "high",
@@ -61,14 +61,50 @@ async function sendPushNotification(uid, title, body, data = {}) {
       headers: { "apns-priority": "10", "apns-push-type": "background" },
       payload: { aps: { "content-available": 1 } },
     },
+    // ✅ WEB PUSH — Service Worker-এ data পৌঁছাবে
+    webpush: {
+      headers: { Urgency: "high" },
+      data: {
+        ...data,
+        title: title,
+        body: body,
+        type: data.type || "general",
+      },
+      fcmOptions: {
+        link: "/",
+      },
+    },
   };
 
   try {
-    await messaging.sendEachForMulticast(message);
+    const response = await messaging.sendEachForMulticast(message);
+    logger.info(
+      `Push: ${response.successCount}/${tokens.length} delivered to ${uid}`
+    );
+
+    // ✅ Invalid token cleanup
+    if (response.failureCount > 0) {
+      const invalidTokens = [];
+      response.responses.forEach((resp, idx) => {
+        if (!resp.success) {
+          const errCode = resp.error?.code;
+          if (
+            errCode === "messaging/invalid-registration-token" ||
+            errCode === "messaging/registration-token-not-registered"
+          ) {
+            invalidTokens.push(tokens[idx]);
+          }
+        }
+      });
+      if (invalidTokens.length > 0) {
+        await cleanupInvalidTokens(uid, invalidTokens);
+      }
+    }
   } catch (e) {
     logger.error("Push failed:", e);
   }
 }
+
 // ============================================================
 // HELPER: In-App Notification Doc তৈরি
 // ============================================================
@@ -187,8 +223,7 @@ exports.onMessageCreated = onDocumentCreated(
     if (!data) return;
 
     const senderId = data.senderId;
-    // ✅ আপনার চ্যাট মেসেজে receiverId আছে কি না নিশ্চিত করুন
-    const receiverId = data.receiverId; 
+    const receiverId = data.receiverId;
     const text = data.text || data.message || "";
 
     if (!receiverId || !senderId) {
@@ -214,8 +249,9 @@ exports.onMessageCreated = onDocumentCreated(
     }
   }
 );
+
 // ============================================================
-// 4. ✅ CALL CREATED — Data-Only Push (High Priority)
+// 4. ✅ CALL CREATED — Data-Only Push (High Priority + Webpush)
 // ============================================================
 exports.onCallCreated = onDocumentCreated(
   {
@@ -267,11 +303,47 @@ exports.onCallCreated = onDocumentCreated(
             aps: { "content-available": 1 },
           },
         },
+        // ✅ WEB PUSH — Service Worker এ কল ডেটা পৌঁছাবে
+        webpush: {
+          headers: { Urgency: "high" },
+          data: {
+            type: "call",
+            callId: callId,
+            channelName: channelName,
+            callerId: callerId,
+            callerName: callerName,
+            callerPhoto: callerPhoto,
+            isVideoCall: isVideoCall ? "true" : "false",
+          },
+          fcmOptions: {
+            link: `/?type=call&callId=${callId}`,
+          },
+        },
       };
 
       const response = await messaging.sendEachForMulticast(message);
-      logger.info(`📞 Call FCM: ${response.successCount}/${tokens.length} to ${receiverId}`);
-      
+      logger.info(
+        `📞 Call FCM: ${response.successCount}/${tokens.length} to ${receiverId}`
+      );
+
+      // ✅ Invalid token cleanup
+      if (response.failureCount > 0) {
+        const invalidTokens = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            const errCode = resp.error?.code;
+            if (
+              errCode === "messaging/invalid-registration-token" ||
+              errCode === "messaging/registration-token-not-registered"
+            ) {
+              invalidTokens.push(tokens[idx]);
+            }
+          }
+        });
+        if (invalidTokens.length > 0) {
+          await cleanupInvalidTokens(receiverId, invalidTokens);
+        }
+      }
     } catch (e) {
       logger.error("Call FCM handler failed:", e);
     }
