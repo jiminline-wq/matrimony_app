@@ -8,6 +8,7 @@ import 'login_screen.dart';
 import 'package:flutter/foundation.dart'; // kIsWeb এর জন্য
 import 'web_registration_screen.dart'; // আপনার নতুন ফাইলটি
 import 'package:url_launcher/url_launcher.dart'; // ওয়েবে লিঙ্ক ওপেন করার জন্য
+import '../widgets/app_download_banner.dart'; // ✅ ১. ব্যানার ইমপোর্ট করা হলো
 
 // ============================================================
 // LANGUAGE
@@ -264,7 +265,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   // মূল কন্টেন্ট
                   Center(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 50),
+                      // ✅ ২. নিচে ব্যানারের জন্য জায়গা রাখার জন্য প্যাডিং বাড়ানো হলো
+                      padding: const EdgeInsets.only(
+                          left: 50, right: 50, top: 100, bottom: 120),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -427,6 +430,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         ],
                       ),
                     ),
+                  ),
+
+                  // ✅ ৩. ওয়েবসাইটের জন্য নিচে ডাউনলোড ব্যানার বসানো হলো
+                  const Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: AppDownloadBanner(),
                   ),
                 ],
               ),
