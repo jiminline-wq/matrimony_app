@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ যোগ করা হলো
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:flutter_callkit_incoming/entities/call_event.dart';
 
 import 'firebase_options.dart';
 import 'theme/colors.dart';
@@ -30,26 +33,32 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // ২. Notification permission
   await FirebaseMessaging.instance.requestPermission(
     alert: true,
     badge: true,
     sound: true,
   );
-  // ২. ✅ FCM SETUP (অবশ্যই runApp এর আগে থাকতে হবে)
+
+  // ৩. ✅ FCM SETUP (অবশ্যই runApp এর আগে থাকতে হবে)
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await FcmService.initialize();
 
-  // ৩. Analytics enable
+  // ৪. ✅ Android 14+ Full-Screen Intent Permission (CallKit-এর জন্য জরুরি)
+  await _requestFullScreenIntentPermission();
+
+  // ৫. Analytics enable
   await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
 
-  // ৪. UMP consent — AdMob init-এর আগে (EU/GDPR compliance)
+  // ৬. UMP consent — AdMob init-এর আগে (EU/GDPR compliance)
   await _initUmpConsent();
 
-  // ৫. AdMob initialize (consent-এর পরে)
+  // ৭. AdMob initialize (consent-এর পরে)
   await AdManager.initialize();
 
   // ============================================================
-  // ৬. STALE CALL CLEANUP
+  // ৮. STALE CALL CLEANUP
   // ============================================================
   try {
     final cleaned = await CallService.cleanupStaleCalls();
@@ -61,7 +70,7 @@ Future<void> main() async {
   }
 
   // ============================================================
-  // ৭. EXPIRED STORIES CLEANUP
+  // ৯. EXPIRED STORIES CLEANUP
   // ============================================================
   try {
     final stories = await StoryService.cleanupExpired();
@@ -73,6 +82,23 @@ Future<void> main() async {
   }
 
   runApp(const JibonSathiApp());
+}
+
+// ============================================================
+// ✅ CALLKIT FULL-SCREEN INTENT PERMISSION (Android 14+)
+// ============================================================
+Future<void> _requestFullScreenIntentPermission() async {
+  try {
+    final canUse = await FlutterCallkitIncoming.canUseFullScreenIntent();
+    if (!canUse) {
+      debugPrint('📞 Requesting full-screen intent permission...');
+      await FlutterCallkitIncoming.requestFullIntentPermission();
+    } else {
+      debugPrint('✅ Full-screen intent permission already granted');
+    }
+  } catch (e) {
+    debugPrint('⚠️ Full-screen intent permission error: $e');
+  }
 }
 
 // ============================================================
@@ -130,11 +156,149 @@ class JibonSathiApp extends StatefulWidget {
 
 class _JibonSathiAppState extends State<JibonSathiApp> {
   bool _pendingProcessed = false;
+  StreamSubscription<CallEvent?>? _callKitSubscription;
 
   @override
   void initState() {
     super.initState();
+    _setupCallKitListener();
     _schedulePendingNotification();
+  }
+
+  @override
+  void dispose() {
+    _callKitSubscription?.cancel();
+    super.dispose();
+  }
+
+  // ============================================================
+  // ✅ CALLKIT EVENT LISTENER
+  // ============================================================
+  void _setupCallKitListener() {
+    _callKitSubscription = FlutterCallkitIncoming.onEvent.listen((event) {
+      if (event == null) return;
+
+      final eventName = event.event;
+      debugPrint('📞 CallKit event: $eventName');
+
+      if (eventName == 'actionCallAccept') {
+        _handleCallAccept(event.body);
+      } else if (eventName == 'actionCallDecline') {
+        _handleCallDecline(event.body);
+      } else if (eventName == 'actionCallEnd') {
+        _handleCallEnd(event.body);
+      } else if (eventName == 'actionCallTimeout') {
+        _handleCallTimeout(event.body);
+      }
+    });
+  }
+
+  // Accept বাটন চাপলে — CallScreen খুলে Agora channel-এ join হবে
+  void _handleCallAccept(dynamic body) {
+    try {
+      final extra = _extractExtra(body);
+      if (extra == null) return;
+
+      final nav = NavigationService.navigatorKey.currentState;
+      if (nav == null) {
+        debugPrint('❌ Navigator not ready for accepted call');
+        return;
+      }
+
+      debugPrint('📞 Call accepted, opening CallScreen');
+
+      nav.push(
+        MaterialPageRoute(
+          builder: (_) => CallScreen(
+            isBangla: true,
+            channelName: extra['channelName'] ?? '',
+            otherUserName: extra['callerName'] ?? 'Unknown',
+            otherUserPhoto: extra['callerPhoto'] ?? '',
+            isVideoCall: extra['isVideoCall'] == 'true',
+            isCaller: false,
+            callId: extra['callId'],
+            isIncoming: true,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('❌ _handleCallAccept error: $e');
+    }
+  }
+
+  // Decline বাটন চাপলে — call বাতিল হিসেবে mark করুন
+  void _handleCallDecline(dynamic body) {
+    try {
+      final extra = _extractExtra(body);
+      final callId = extra?['callId'];
+      if (callId != null) {
+        // ✅ সরাসরি Firestore-এ call status আপডেট
+        FirebaseFirestore.instance.collection('calls').doc(callId).update({
+          'status': 'declined',
+          'endedAt': FieldValue.serverTimestamp(),
+        }).catchError((e) {
+          debugPrint('⚠️ Could not update call as declined: $e');
+        });
+        debugPrint('📞 Call declined: $callId');
+      }
+    } catch (e) {
+      debugPrint('❌ _handleCallDecline error: $e');
+    }
+  }
+
+  // ✅ Call শেষ হলে — Firestore-এ status আপডেট
+  void _handleCallEnd(dynamic body) {
+    try {
+      final extra = _extractExtra(body);
+      final callId = extra?['callId'];
+      if (callId != null) {
+        FirebaseFirestore.instance.collection('calls').doc(callId).update({
+          'status': 'ended',
+          'endedAt': FieldValue.serverTimestamp(),
+        }).catchError((e) {
+          debugPrint('⚠️ Could not update call as ended: $e');
+        });
+        debugPrint('📞 Call ended via CallKit: $callId');
+      }
+    } catch (e) {
+      debugPrint('❌ _handleCallEnd error: $e');
+    }
+  }
+
+  // Timeout হলে (কেউ receive না করলে)
+  void _handleCallTimeout(dynamic body) {
+    try {
+      final extra = _extractExtra(body);
+      final callId = extra?['callId'];
+      if (callId != null) {
+        // ✅ সরাসরি Firestore-এ call status আপডেট
+        FirebaseFirestore.instance.collection('calls').doc(callId).update({
+          'status': 'missed',
+          'endedAt': FieldValue.serverTimestamp(),
+        }).catchError((e) {
+          debugPrint('⚠️ Could not update call as missed: $e');
+        });
+        debugPrint('📞 Call timeout: $callId');
+      }
+    } catch (e) {
+      debugPrint('❌ _handleCallTimeout error: $e');
+    }
+  }
+
+  // ✅ body থেকে extra বের করার helper
+  Map<String, dynamic>? _extractExtra(dynamic body) {
+    if (body == null) return null;
+    if (body is! Map) return null;
+
+    final extra = body['extra'];
+    if (extra is Map<String, dynamic>) return extra;
+    if (extra is Map) return Map<String, dynamic>.from(extra);
+
+    try {
+      return Map<String, dynamic>.from(body);
+    } catch (_) {
+      return null;
+    }
   }
 
   // ============================================================
